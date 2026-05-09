@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldAlert, AlertTriangle, Lock, FileText, Brain } from "lucide-react";
+import { ShieldAlert, AlertTriangle, Lock, FileText, Brain, Eye, Edit2, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 
@@ -109,7 +109,17 @@ export default function IntelClient({ reports }: IntelClientProps) {
                   </td>
                   <td className="py-3 px-4 text-tactical-muted">{row.location_tag}</td>
                   <td className="py-3 px-4 text-right">
-                    <button className="text-tactical-cyan hover:text-white transition-colors">DECRYPT</button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button className="p-1.5 text-tactical-cyan hover:bg-tactical-cyan/20 hover:text-white rounded transition-colors" title="View">
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button className="p-1.5 text-yellow-500 hover:bg-yellow-500/20 hover:text-yellow-400 rounded transition-colors" title="Edit">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button className="p-1.5 text-tactical-red hover:bg-tactical-red/20 hover:text-red-400 rounded transition-colors" title="Delete">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </motion.tr>
               ))}

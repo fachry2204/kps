@@ -36,9 +36,9 @@ export default function OperationsClient({ operations }: OperationsClientProps) 
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="space-y-4">
         {/* Active Operations List */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="space-y-4">
           {operations.map((ops, i) => (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
@@ -83,33 +83,6 @@ export default function OperationsClient({ operations }: OperationsClientProps) 
               </div>
             </motion.div>
           ))}
-        </div>
-
-        {/* Tactical Briefing Panel */}
-        <div className="tactical-glass tactical-border p-5 h-fit sticky top-24">
-          <h3 className="text-tactical-text font-bold mb-4 font-mono text-sm border-b border-tactical-border pb-2">
-            TACTICAL BRIEFING
-          </h3>
-          <div className="text-center py-8">
-            <div className="w-16 h-16 rounded-full border-2 border-dashed border-tactical-muted mx-auto flex items-center justify-center mb-4">
-              <Crosshair className="w-8 h-8 text-tactical-muted" />
-            </div>
-            <p className="text-tactical-muted text-sm font-mono">Pilih operasi untuk melihat detail briefing, struktur komando, dan live tracking.</p>
-          </div>
-          <div className="mt-4 space-y-2">
-            <div className="p-3 border border-tactical-border bg-tactical-bg rounded flex items-center gap-3 opacity-50">
-              <CheckCircle className="w-4 h-4 text-tactical-muted" />
-              <span className="text-sm font-mono">Mission Objectives</span>
-            </div>
-            <div className="p-3 border border-tactical-border bg-tactical-bg rounded flex items-center gap-3 opacity-50">
-              <CheckCircle className="w-4 h-4 text-tactical-muted" />
-              <span className="text-sm font-mono">Command Hierarchy</span>
-            </div>
-            <div className="p-3 border border-tactical-border bg-tactical-bg rounded flex items-center gap-3 opacity-50">
-              <CheckCircle className="w-4 h-4 text-tactical-muted" />
-              <span className="text-sm font-mono">Operation Analytics</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>

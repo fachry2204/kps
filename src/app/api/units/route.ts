@@ -6,7 +6,7 @@ import path from "path";
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { unit_name, unit_type, location, coordinates, commander_id, logoBase64, logoName } = data;
+    const { unit_name, unit_type, location, coordinates, commander_id, members, logoBase64, logoName } = data;
 
     let logoUrl = null;
     if (logoBase64 && logoName) {
@@ -24,8 +24,8 @@ export async function POST(request: NextRequest) {
     }
 
     const [result] = await pool.query(
-      'INSERT INTO units (unit_name, unit_type, logo_url, location, coordinates, status) VALUES (?, ?, ?, ?, ?, "ACTIVE")',
-      [unit_name, unit_type, logoUrl, location, coordinates]
+      'INSERT INTO units (unit_name, unit_type, logo_url, location, coordinates, status, commander_id) VALUES (?, ?, ?, ?, ?, "ACTIVE", ?)',
+      [unit_name, unit_type, logoUrl, location, coordinates, commander_id || null]
     );
     
     const unitId = (result as any).insertId;
@@ -35,6 +35,15 @@ export async function POST(request: NextRequest) {
         'UPDATE personnel SET unit_id = ? WHERE id = ?',
         [unitId, commander_id]
       );
+    }
+
+    if (members && members.length > 0) {
+      for (const m of members) {
+        await pool.query(
+          'UPDATE personnel SET unit_id = ?, unit_role = ? WHERE id = ?',
+          [unitId, m.role, m.id]
+        );
+      }
     }
     
     return NextResponse.json({ success: true, unitId });

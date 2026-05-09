@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
@@ -10,7 +11,9 @@ import {
   Users, 
   Building2, 
   Package, 
-  Settings 
+  Settings,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,9 +21,17 @@ const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Map", href: "/map", icon: Map },
   { name: "Intelijen", href: "/intel", icon: ShieldAlert },
-  { name: "Operasi", href: "/operations", icon: Crosshair },
+  { 
+    name: "Gelar Operasi", 
+    href: "/gelar-operasi", 
+    icon: Crosshair,
+    subItems: [
+      { name: "Operasi Dalam Negeri", href: "/gelar-operasi/dalam-negeri" },
+      { name: "Operasi Luar Negeri", href: "/gelar-operasi/luar-negeri" },
+    ]
+  },
   { name: "Personil", href: "/personnel", icon: Users },
-  { name: "Kesatuan", href: "/units", icon: Building2 },
+  { name: "Kesatuan", href: "/kesatuan", icon: Building2 },
   { name: "Logistik", href: "/logistics", icon: Package },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -42,10 +53,10 @@ export function Sidebar() {
       />
       <div className="p-6 flex items-center gap-3 border-b border-tactical-border">
         <div className="w-10 h-10 rounded-full bg-tactical-green/10 border border-tactical-green/30 flex items-center justify-center overflow-hidden">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/6/61/Lambang_Kopassus.svg" alt="Kopassus" className="w-8 h-8 object-contain" />
+          <img src="/logo.png" alt="Kopassus" className="w-8 h-8 object-contain" />
         </div>
         <div>
-          <h1 className="text-tactical-green font-bold text-lg leading-tight tracking-wider">PUSKODAL</h1>
+          <h1 className="text-tactical-green font-bold text-lg leading-tight tracking-wider">IDC - SF</h1>
           <p className="text-tactical-muted text-xs font-mono tracking-widest">KOPASUS</p>
         </div>
       </div>
@@ -55,29 +66,75 @@ export function Sidebar() {
           Main Navigation
         </div>
         {navigation.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = pathname === item.href || (item.subItems && pathname.startsWith(item.href));
           const Icon = item.icon;
+          const hasSubItems = item.subItems && item.subItems.length > 0;
+          const [isOpen, setIsOpen] = useState(isActive);
+
           return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200",
-                isActive 
-                  ? "bg-tactical-green/10 text-tactical-green border border-tactical-green/30" 
-                  : "text-tactical-text hover:bg-tactical-border hover:text-tactical-green"
+            <div key={item.name} className="space-y-1">
+              {hasSubItems ? (
+                <button
+                  onClick={() => setIsOpen(!isOpen)}
+                  className={cn(
+                    "w-full group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200",
+                    isActive 
+                      ? "bg-tactical-green/10 text-tactical-green border border-tactical-green/30" 
+                      : "text-tactical-text hover:bg-tactical-border hover:text-tactical-green"
+                  )}
+                >
+                  <Icon className={cn(
+                    "mr-3 h-5 w-5 flex-shrink-0 transition-colors",
+                    isActive ? "text-tactical-green" : "text-tactical-muted group-hover:text-tactical-green"
+                  )} />
+                  {item.name}
+                  <div className="ml-auto">
+                    {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </div>
+                </button>
+              ) : (
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200",
+                    isActive 
+                      ? "bg-tactical-green/10 text-tactical-green border border-tactical-green/30" 
+                      : "text-tactical-text hover:bg-tactical-border hover:text-tactical-green"
+                  )}
+                >
+                  <Icon className={cn(
+                    "mr-3 h-5 w-5 flex-shrink-0 transition-colors",
+                    isActive ? "text-tactical-green" : "text-tactical-muted group-hover:text-tactical-green"
+                  )} />
+                  {item.name}
+                  {isActive && (
+                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-tactical-green shadow-[0_0_8px_rgba(57,255,20,0.8)]" />
+                  )}
+                </Link>
               )}
-            >
-              <Icon className={cn(
-                "mr-3 h-5 w-5 flex-shrink-0 transition-colors",
-                isActive ? "text-tactical-green" : "text-tactical-muted group-hover:text-tactical-green"
-              )} />
-              {item.name}
-              
-              {isActive && (
-                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-tactical-green shadow-[0_0_8px_rgba(57,255,20,0.8)]" />
+
+              {hasSubItems && isOpen && (
+                <div className="pl-11 space-y-1">
+                  {item.subItems.map((sub) => {
+                    const isSubActive = pathname === sub.href;
+                    return (
+                      <Link
+                        key={sub.name}
+                        href={sub.href}
+                        className={cn(
+                          "block px-3 py-1.5 text-[11px] font-mono rounded-md transition-all duration-200 border-l-2",
+                          isSubActive
+                            ? "text-tactical-green border-tactical-green bg-tactical-green/5"
+                            : "text-tactical-muted border-transparent hover:text-tactical-text hover:bg-tactical-border"
+                        )}
+                      >
+                        {sub.name}
+                      </Link>
+                    );
+                  })}
+                </div>
               )}
-            </Link>
+            </div>
           );
         })}
       </nav>

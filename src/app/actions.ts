@@ -33,11 +33,49 @@ export async function getDashboardStats() {
 // 2. Personnel Data
 export async function getPersonnel() {
   const [rows] = await pool.query(`
-    SELECT p.*, u.unit_name 
+    SELECT p.*, u.unit_name,
+    (SELECT u2.unit_name FROM units u2 WHERE u2.commander_id = p.id LIMIT 1) as commanded_unit_name
     FROM personnel p 
     LEFT JOIN units u ON p.unit_id = u.id
     ORDER BY p.id DESC
   `);
+  return rows as any[];
+}
+
+export async function getPersonnelById(id: number) {
+  if (isNaN(id)) return null;
+  const [rows] = await pool.query(`
+    SELECT p.*, u.unit_name 
+    FROM personnel p 
+    LEFT JOIN units u ON p.unit_id = u.id
+    WHERE p.id = ?
+    LIMIT 1
+  `, [id]);
+  const personnel = rows as any[];
+  return personnel.length > 0 ? personnel[0] : null;
+}
+
+export async function getPersonnelUnitHistory(id: number) {
+  if (isNaN(id)) return [];
+  const [rows] = await pool.query(`
+    SELECT h.*, u.unit_name, u.unit_type
+    FROM personnel_unit_history h
+    JOIN units u ON h.unit_id = u.id
+    WHERE h.personnel_id = ?
+    ORDER BY h.start_date DESC
+  `, [id]);
+  return rows as any[];
+}
+
+export async function getPersonnelOperationHistory(id: number) {
+  if (isNaN(id)) return [];
+  const [rows] = await pool.query(`
+    SELECT h.*, o.operation_name as mission_name, o.operation_type as mission_type, o.status as mission_status
+    FROM personnel_operation_history h
+    JOIN operations o ON h.operation_id = o.id
+    WHERE h.personnel_id = ?
+    ORDER BY h.start_date DESC
+  `, [id]);
   return rows as any[];
 }
 
@@ -64,21 +102,37 @@ export async function getUnits() {
   const [rows] = await pool.query(`
     SELECT u.*, 
     (SELECT COUNT(*) FROM personnel p WHERE p.unit_id = u.id) as strength,
-    p.name as commander_name
+    p.name as commander_name,
+    p.rank as commander_rank,
+    p.nrp as commander_nrp
     FROM units u
-    LEFT JOIN personnel p ON u.id = p.unit_id AND (p.rank LIKE '%Mayor%' OR p.rank LIKE '%Letkol%' OR p.rank LIKE '%Kolonel%')
-    GROUP BY u.id
+    LEFT JOIN personnel p ON u.commander_id = p.id
+    GROUP BY u.id, p.name, p.rank, p.nrp
   `);
   return rows as any[];
 }
 
+export async function getUnitById(id: number) {
+  if (isNaN(id)) return null;
+  const [rows] = await pool.query(`
+    SELECT u.*, p.name as commander_name, p.rank as commander_rank, p.nrp as commander_nrp
+    FROM units u
+    LEFT JOIN personnel p ON u.commander_id = p.id
+    WHERE u.id = ?
+    LIMIT 1
+  `, [id]);
+  const units = rows as any[];
+  return units.length > 0 ? units[0] : null;
+}
+
 export async function getUnitMembers(unitId: number) {
   const [rows] = await pool.query(`
-    SELECT id, name, rank, nrp, specialization, status
-    FROM personnel
-    WHERE unit_id = ?
-    ORDER BY FIELD(rank, 'Kolonel', 'Letkol', 'Mayor', 'Kapten', 'Lettu', 'Letda', 'Peltu', 'Pelda', 'Serma', 'Serka', 'Sertu', 'Serda', 'Kopda', 'Koptu', 'Praka', 'Pratu', 'Prada') ASC, name ASC
-  `, [unitId]);
+    SELECT p.id, p.name, p.rank, p.nrp, p.specialization, p.status, p.unit_role
+    FROM personnel p
+    LEFT JOIN units u ON u.id = ?
+    WHERE p.unit_id = ? AND (u.commander_id IS NULL OR p.id != u.commander_id)
+    ORDER BY FIELD(p.rank, 'Kolonel', 'Letkol', 'Mayor', 'Kapten', 'Lettu', 'Letda', 'Peltu', 'Pelda', 'Serma', 'Serka', 'Sertu', 'Serda', 'Kopda', 'Koptu', 'Praka', 'Pratu', 'Prada') ASC, p.name ASC
+  `, [unitId, unitId]);
   return rows as any[];
 }
 
@@ -89,15 +143,81 @@ interface AddUnitData {
   location: string;
   coordinates: string;
   commander_id?: string;
+  members?: {id: number, role: string}[];
   logoBase64?: string | null;
   logoName?: string | null;
 }
 
+interface UpdateUnitData extends AddUnitData {
+  id: number;
+}
+
 // 7. Add Unit
+// ... existing addUnit ...
+
+// 9. Update Unit
+export async function updateUnit(data: UpdateUnitData) {
+  try {
+    console.log("Processing updateUnit:", data.id);
+    const { id, unit_name, unit_type, location, coordinates, commander_id, members, logoBase64, logoName } = data;
+
+    let logoUrl = null;
+    if (logoBase64 && logoName) {
+      const base64Data = logoBase64.split(',')[1] || logoBase64;
+      const buffer = Buffer.from(base64Data, 'base64');
+      const fileName = `${Date.now()}-${logoName.replace(/\s+/g, "_")}`;
+      const uploadsDir = path.join(process.cwd(), "public", "uploads", "kesatuan");
+      await fs.mkdir(uploadsDir, { recursive: true });
+      const filePath = path.join(uploadsDir, fileName);
+      await fs.writeFile(filePath, buffer);
+      logoUrl = `/uploads/kesatuan/${fileName}`;
+    }
+
+    if (logoUrl) {
+      await pool.query(
+        'UPDATE units SET unit_name = ?, unit_type = ?, logo_url = ?, location = ?, coordinates = ?, commander_id = ? WHERE id = ?',
+        [unit_name, unit_type, logoUrl, location, coordinates, commander_id || null, id]
+      );
+    } else {
+      await pool.query(
+        'UPDATE units SET unit_name = ?, unit_type = ?, location = ?, coordinates = ?, commander_id = ? WHERE id = ?',
+        [unit_name, unit_type, location, coordinates, commander_id || null, id]
+      );
+    }
+
+    // Update commander relationship
+    await pool.query('UPDATE personnel SET unit_id = NULL WHERE unit_id = ? AND (rank LIKE "%Mayor%" OR rank LIKE "%Letkol%" OR rank LIKE "%Kolonel%")', [id]);
+    if (commander_id) {
+      await pool.query('UPDATE personnel SET unit_id = ? WHERE id = ?', [id, commander_id]);
+    }
+
+    // Update members relationship
+    // First, clear all members currently in this unit (except the commander if they are also in the list)
+    await pool.query('UPDATE personnel SET unit_id = NULL WHERE unit_id = ?', [id]);
+    
+    // Re-assign commander (in case they were cleared)
+    if (commander_id) {
+      await pool.query('UPDATE personnel SET unit_id = ? WHERE id = ?', [id, commander_id]);
+    }
+
+    // Assign the list of members
+    console.log("members received:", members);
+    if (members && members.length > 0) {
+      for (const m of members) {
+        await pool.query('UPDATE personnel SET unit_id = ?, unit_role = ? WHERE id = ?', [id, m.role, m.id]);
+      }
+    }
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error in updateUnit:", error);
+    return { success: false, error: error.message };
+  }
+}
 export async function addUnit(data: AddUnitData) {
   try {
     console.log("Processing addUnit (JSON mode)...");
-    const { unit_name, unit_type, location, coordinates, commander_id, logoBase64, logoName } = data;
+    const { unit_name, unit_type, location, coordinates, commander_id, members, logoBase64, logoName } = data;
 
     console.log("Unit Data:", { unit_name, unit_type, location, coordinates, commander_id });
 
@@ -121,8 +241,8 @@ export async function addUnit(data: AddUnitData) {
     }
 
     const [result] = await pool.query(
-      'INSERT INTO units (unit_name, unit_type, logo_url, location, coordinates, status) VALUES (?, ?, ?, ?, ?, "ACTIVE")',
-      [unit_name, unit_type, logoUrl, location, coordinates]
+      'INSERT INTO units (unit_name, unit_type, logo_url, location, coordinates, status, commander_id) VALUES (?, ?, ?, ?, ?, "ACTIVE", ?)',
+      [unit_name, unit_type, logoUrl, location, coordinates, commander_id || null]
     );
     
     const unitId = (result as any).insertId;
@@ -135,10 +255,177 @@ export async function addUnit(data: AddUnitData) {
         [unitId, commander_id]
       );
     }
+
+    if (members && members.length > 0) {
+      console.log("Updating members:", members);
+      for (const m of members) {
+        await pool.query(
+          'UPDATE personnel SET unit_id = ?, unit_role = ? WHERE id = ?',
+          [unitId, m.role, m.id]
+        );
+      }
+    }
     
     return { success: true, unitId };
   } catch (error: any) {
     console.error("Error in addUnit:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// 8. Delete Unit
+export async function deleteUnit(unitId: number) {
+  try {
+    console.log("Deleting unit:", unitId);
+    
+    // First, set unit_id to NULL for any personnel assigned to this unit
+    await pool.query('UPDATE personnel SET unit_id = NULL WHERE unit_id = ?', [unitId]);
+    
+    // Then delete the unit
+    await pool.query('DELETE FROM units WHERE id = ?', [unitId]);
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error deleting unit:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export interface AddPersonnelData {
+  name: string;
+  nrp: string;
+  rank: string;
+  unit_id: number | null;
+  specialization: string;
+  status: string;
+  joined_date: string;
+  photoBase64?: string | null;
+  photoName?: string | null;
+  address?: string;
+  gps_coordinates?: string;
+  phone_number?: string;
+  emergency_contact?: string;
+  email?: string;
+}
+
+// 10. Add Personnel
+export async function addPersonnel(data: AddPersonnelData) {
+  try {
+    console.log("Processing addPersonnel:", data.name);
+    const { name, nrp, rank, unit_id, specialization, status, joined_date, photoBase64, photoName, address, gps_coordinates, phone_number, emergency_contact, email } = data;
+
+    let photoUrl = null;
+    if (photoBase64 && photoName) {
+      const base64Data = photoBase64.split(',')[1] || photoBase64;
+      const buffer = Buffer.from(base64Data, 'base64');
+      const fileName = `${Date.now()}-${photoName.replace(/\s+/g, "_")}`;
+      const uploadsDir = path.join(process.cwd(), "public", "uploads", "personnel");
+      await fs.mkdir(uploadsDir, { recursive: true });
+      const filePath = path.join(uploadsDir, fileName);
+      await fs.writeFile(filePath, buffer);
+      photoUrl = `/uploads/personnel/${fileName}`;
+    }
+
+    const [result] = await pool.query(
+      'INSERT INTO personnel (nrp, name, rank, unit_id, specialization, status, joined_date, photo_url, address, gps_coordinates, phone_number, emergency_contact, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [nrp, name, rank, unit_id, specialization, status, joined_date, photoUrl, address, gps_coordinates, phone_number, emergency_contact, email]
+    );
+    
+    return { success: true, id: (result as any).insertId };
+  } catch (error: any) {
+    console.error("Error in addPersonnel:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// 11. Update Personnel
+export async function updatePersonnel(id: number, data: AddPersonnelData) {
+  try {
+    const { name, nrp, rank, unit_id, specialization, status, joined_date, photoBase64, photoName, address, gps_coordinates, phone_number, emergency_contact, email } = data;
+    
+    let photoUrl = null;
+    if (photoBase64 && photoName) {
+      const base64Data = photoBase64.split(',')[1] || photoBase64;
+      const buffer = Buffer.from(base64Data, 'base64');
+      const fileName = `${Date.now()}-${photoName.replace(/\s+/g, "_")}`;
+      const uploadsDir = path.join(process.cwd(), "public", "uploads", "personnel");
+      await fs.mkdir(uploadsDir, { recursive: true });
+      const filePath = path.join(uploadsDir, fileName);
+      await fs.writeFile(filePath, buffer);
+      photoUrl = `/uploads/personnel/${fileName}`;
+    }
+
+    if (photoUrl) {
+      await pool.query(
+        'UPDATE personnel SET nrp = ?, name = ?, rank = ?, unit_id = ?, specialization = ?, status = ?, joined_date = ?, photo_url = ?, address = ?, gps_coordinates = ?, phone_number = ?, emergency_contact = ?, email = ? WHERE id = ?',
+        [nrp, name, rank, unit_id, specialization, status, joined_date, photoUrl, address, gps_coordinates, phone_number, emergency_contact, email, id]
+      );
+    } else {
+      await pool.query(
+        'UPDATE personnel SET nrp = ?, name = ?, rank = ?, unit_id = ?, specialization = ?, status = ?, joined_date = ?, address = ?, gps_coordinates = ?, phone_number = ?, emergency_contact = ?, email = ? WHERE id = ?',
+        [nrp, name, rank, unit_id, specialization, status, joined_date, address, gps_coordinates, phone_number, emergency_contact, email, id]
+      );
+    }
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error in updatePersonnel:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// 12. Delete Personnel
+export async function deletePersonnel(id: number) {
+  try {
+    // If they are a commander, set commander_id to NULL in units
+    await pool.query('UPDATE units SET commander_id = NULL WHERE commander_id = ?', [id]);
+    
+    // Delete their history
+    await pool.query('DELETE FROM personnel_unit_history WHERE personnel_id = ?', [id]);
+    await pool.query('DELETE FROM personnel_operation_history WHERE personnel_id = ?', [id]);
+    
+    // Delete the person
+    await pool.query('DELETE FROM personnel WHERE id = ?', [id]);
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error in deletePersonnel:", error);
+    return { success: false, error: error.message };
+  }
+}
+// 13. Operations Tables (New)
+export async function getOpsDalamNegeri() {
+  const [rows] = await pool.query('SELECT * FROM ops_dalamnegri ORDER BY id DESC');
+  return rows as any[];
+}
+
+export async function getOpsLuarNegeri() {
+  const [rows] = await pool.query('SELECT * FROM ops_luarnegri ORDER BY id DESC');
+  return rows as any[];
+}
+
+export async function addOpDalamNegeri(data: any) {
+  try {
+    const { name, location, personnel, status, readiness, type } = data;
+    await pool.query(
+      'INSERT INTO ops_dalamnegri (name, location, personnel, status, readiness, type) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, location, personnel, status, readiness, type]
+    );
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function addOpLuarNegeri(data: any) {
+  try {
+    const { name, location, personnel, status, readiness, type } = data;
+    await pool.query(
+      'INSERT INTO ops_luarnegri (name, location, personnel, status, readiness, type) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, location, personnel, status, readiness, type]
+    );
+    return { success: true };
+  } catch (error: any) {
     return { success: false, error: error.message };
   }
 }

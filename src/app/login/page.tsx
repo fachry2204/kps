@@ -62,10 +62,10 @@ export default function LoginPage() {
       >
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-32 h-32 rounded-full mb-4 relative drop-shadow-[0_0_30px_rgba(204,0,0,0.5)]">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/6/61/Lambang_Kopassus.svg" alt="Kopassus Logo" className="w-full h-full object-contain" />
+            <img src="/logo.png" alt="Kopassus Logo" className="w-full h-full object-contain" />
           </div>
-          <h1 className="text-3xl font-bold text-tactical-text tracking-widest">PUSKODAL</h1>
-          <p className="text-tactical-green font-mono text-sm tracking-[0.3em] mt-2">KOPASUS COMMAND CENTER</p>
+          <h1 className="text-xl font-bold text-tactical-text tracking-widest uppercase">INTEGRATED DATA CENTER - SPECIAL FORCE</h1>
+          <p className="text-tactical-green font-mono text-sm tracking-[0.3em] mt-2">(IDC - SF)</p>
           <div className="flex items-center justify-center gap-2 mt-4 text-xs font-mono text-tactical-muted">
             <Lock className="w-3 h-3" />
             <span>ENCRYPTED SECURE LINK</span>

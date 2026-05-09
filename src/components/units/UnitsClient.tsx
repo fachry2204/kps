@@ -1,11 +1,12 @@
 "use client";
 
-import { Building2, ChevronRight, Shield, Plus, MapPin, X, Users, Target } from "lucide-react";
+import { Building2, ChevronRight, Shield, Plus, MapPin, X, Users, Target, Search, Edit, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { getUnitMembers } from "@/app/actions";
+import { getUnitMembers, deleteUnit } from "@/app/actions";
+import { useRouter } from "next/navigation";
 
 const LocationPicker = dynamic(() => import("./LocationPicker"), { 
   ssr: false,
@@ -22,6 +23,8 @@ interface Unit {
   status: string;
   strength: number;
   commander_name: string;
+  commander_rank: string | null;
+  commander_nrp: string | null;
 }
 
 interface UnitsClientProps {
@@ -29,10 +32,13 @@ interface UnitsClientProps {
 }
 
 export default function UnitsClient({ units }: UnitsClientProps) {
+  const router = useRouter();
   const [activeUnitMap, setActiveUnitMap] = useState<Unit | null>(null);
   const [activeUnitDetail, setActiveUnitDetail] = useState<Unit | null>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (activeUnitDetail) {
@@ -54,6 +60,27 @@ export default function UnitsClient({ units }: UnitsClientProps) {
     }
   };
 
+  const handleDelete = async (id: number) => {
+    if (confirm("Apakah Anda yakin ingin menghapus kesatuan ini? Semua data personil akan dilepas dari satuan ini.")) {
+      try {
+        const response = await deleteUnit(id);
+        if (response.success) {
+          setActiveUnitDetail(null);
+          router.refresh();
+        } else {
+          alert("Gagal menghapus: " + response.error);
+        }
+      } catch (error) {
+        console.error("Delete failed:", error);
+      }
+    }
+  };
+
+  const filteredUnits = units.filter(unit => 
+    unit.unit_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (unit.commander_name && unit.commander_name.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-end">
@@ -64,16 +91,28 @@ export default function UnitsClient({ units }: UnitsClientProps) {
           </h2>
           <p className="text-tactical-muted font-mono text-sm mt-1">FORCE STRUCTURE & READINESS</p>
         </div>
-        <Link href="/units/add">
-          <button className="px-4 py-2 flex items-center gap-2 text-xs font-mono bg-tactical-green/10 text-tactical-green border border-tactical-green rounded hover:bg-tactical-green/20 transition-colors">
-            <Plus className="w-4 h-4" />
-            TAMBAHKAN KESATUAN
-          </button>
-        </Link>
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tactical-muted" />
+            <input 
+              type="text" 
+              placeholder="Cari Satuan / Personil..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-64 bg-tactical-bg border border-tactical-border rounded pl-10 pr-4 py-2 text-sm text-tactical-text focus:outline-none focus:border-tactical-green transition-colors"
+            />
+          </div>
+          <Link href="/kesatuan/add">
+            <button className="px-4 py-2 flex items-center gap-2 text-xs font-mono bg-tactical-green/10 text-tactical-green border border-tactical-green rounded hover:bg-tactical-green/20 transition-colors">
+              <Plus className="w-4 h-4" />
+              TAMBAHKAN KESATUAN
+            </button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {units.map((unit, i) => (
+        {filteredUnits.map((unit, i) => (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -84,11 +123,11 @@ export default function UnitsClient({ units }: UnitsClientProps) {
             <div className="flex justify-between items-start mb-6">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-tactical-green/10 border border-tactical-green rounded flex items-center justify-center overflow-hidden">
-                  {unit.logo_url ? (
-                    <img src={unit.logo_url} alt={unit.unit_name} className="w-full h-full object-contain p-1" />
-                  ) : (
-                    <Shield className="w-6 h-6 text-tactical-green" />
-                  )}
+                  <img 
+                    src={unit.logo_url || "https://upload.wikimedia.org/wikipedia/commons/6/61/Lambang_Kopassus.svg"} 
+                    alt={unit.unit_name} 
+                    className="w-full h-full object-contain p-1 drop-shadow-[0_0_5px_rgba(0,255,0,0.5)]" 
+                  />
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-tactical-text tracking-wide">{unit.unit_name}</h3>
@@ -120,6 +159,9 @@ export default function UnitsClient({ units }: UnitsClientProps) {
               <div className="p-3 bg-tactical-bg border border-tactical-border rounded">
                 <div className="text-xs text-tactical-muted font-mono mb-1">KOMANDAN</div>
                 <div className="font-bold text-sm text-tactical-text">{unit.commander_name || 'BELUM DITENTUKAN'}</div>
+                {unit.commander_rank && (
+                  <div className="text-[10px] font-mono text-tactical-muted uppercase mt-0.5">{unit.commander_rank}</div>
+                )}
               </div>
               <div className="p-3 bg-tactical-bg border border-tactical-border rounded">
                 <div className="text-xs text-tactical-muted font-mono mb-1">KEKUATAN PERSONIL</div>
@@ -127,20 +169,7 @@ export default function UnitsClient({ units }: UnitsClientProps) {
               </div>
             </div>
 
-            <div>
-              <div className="flex justify-between text-xs font-mono text-tactical-muted mb-2">
-                <span>TACTICAL READINESS</span>
-                <span className="text-tactical-green">
-                  95%
-                </span>
-              </div>
-              <div className="w-full h-2 bg-tactical-bg rounded overflow-hidden">
-                <div 
-                  className="h-full bg-tactical-green"
-                  style={{ width: `95%` }}
-                ></div>
-              </div>
-            </div>
+
           </motion.div>
         ))}
       </div>
@@ -214,17 +243,17 @@ export default function UnitsClient({ units }: UnitsClientProps) {
               <div className="p-6 border-b border-tactical-border bg-tactical-panel/50 flex justify-between items-center">
                 <div className="flex items-center gap-6">
                   <div className="w-20 h-20 bg-tactical-bg border border-tactical-border rounded-lg flex items-center justify-center overflow-hidden">
-                    {activeUnitDetail.logo_url ? (
-                      <img src={activeUnitDetail.logo_url} alt={activeUnitDetail.unit_name} className="w-full h-full object-contain p-2" />
-                    ) : (
-                      <Shield className="w-10 h-10 text-tactical-green" />
-                    )}
+                    <img 
+                      src={activeUnitDetail.logo_url || "https://upload.wikimedia.org/wikipedia/commons/6/61/Lambang_Kopassus.svg"} 
+                      alt={activeUnitDetail.unit_name} 
+                      className="w-full h-full object-contain p-2 drop-shadow-[0_0_5px_rgba(0,255,0,0.5)]" 
+                    />
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold text-tactical-text tracking-tighter">{activeUnitDetail.unit_name}</h2>
                     <div className="flex items-center gap-4 mt-1">
-                      <span className="text-xs font-mono text-tactical-green bg-tactical-green/10 px-2 py-0.5 rounded border border-tactical-green/30">
-                        {activeUnitDetail.unit_type}
+                      <span className="text-xs font-mono text-tactical-green bg-tactical-green/10 px-2 py-0.5 rounded border border-tactical-green/30 uppercase tracking-wider">
+                        {activeUnitDetail.unit_type.replace(/_/g, ' ')}
                       </span>
                       <span className="text-xs font-mono text-tactical-muted flex items-center gap-1">
                         <MapPin size={12} /> {activeUnitDetail.location}
@@ -256,6 +285,9 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                       <div>
                         <div className="text-[10px] font-mono text-tactical-muted">KOMANDAN</div>
                         <div className="text-sm font-bold text-tactical-green">{activeUnitDetail.commander_name || 'BELUM DITENTUKAN'}</div>
+                        {activeUnitDetail.commander_rank && (
+                          <div className="text-[10px] font-mono text-tactical-muted uppercase">{activeUnitDetail.commander_rank}</div>
+                        )}
                       </div>
                       <div>
                         <div className="text-[10px] font-mono text-tactical-muted">KEKUATAN PERSONIL</div>
@@ -289,9 +321,21 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                 {/* Personnel List Section */}
                 <div className="lg:col-span-2 space-y-4">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-sm font-bold text-tactical-text font-mono flex items-center gap-2">
-                      <Users size={16} className="text-tactical-cyan" /> DAFTAR ANGGOTA
-                    </h3>
+                    <div className="flex items-center gap-4">
+                      <h3 className="text-sm font-bold text-tactical-text font-mono flex items-center gap-2">
+                        <Users size={16} className="text-tactical-cyan" /> DAFTAR ANGGOTA
+                      </h3>
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-tactical-muted" />
+                        <input 
+                          type="text"
+                          placeholder="Cari Anggota..."
+                          value={memberSearchQuery}
+                          onChange={(e) => setMemberSearchQuery(e.target.value)}
+                          className="bg-tactical-bg border border-tactical-border rounded pl-8 pr-3 py-1.5 text-[10px] font-mono text-tactical-text focus:outline-none focus:border-tactical-cyan w-48 transition-all"
+                        />
+                      </div>
+                    </div>
                     <span className="text-[10px] font-mono text-tactical-muted uppercase">ACTIVE DUTY PERSONNEL</span>
                   </div>
 
@@ -301,7 +345,7 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                         <tr className="bg-tactical-panel/80 text-[10px] font-mono text-tactical-muted uppercase border-b border-tactical-border">
                           <th className="px-4 py-3 font-medium">NAMA / NRP</th>
                           <th className="px-4 py-3 font-medium">PANGKAT</th>
-                          <th className="px-4 py-3 font-medium">SPESIALISASI</th>
+                          <th className="px-4 py-3 font-medium">JABATAN</th>
                           <th className="px-4 py-3 font-medium text-right">STATUS</th>
                         </tr>
                       </thead>
@@ -312,31 +356,55 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                               LOADING PERSONNEL DATA...
                             </td>
                           </tr>
-                        ) : members.length > 0 ? (
-                          members.map((member) => (
-                            <tr key={member.id} className="border-b border-tactical-border/30 hover:bg-tactical-green/5 transition-colors">
-                              <td className="px-4 py-3">
-                                <div className="font-bold text-tactical-text">{member.name}</div>
-                                <div className="text-[10px] font-mono text-tactical-muted">{member.nrp}</div>
-                              </td>
-                              <td className="px-4 py-3 text-tactical-muted font-mono text-xs">{member.rank}</td>
-                              <td className="px-4 py-3 text-tactical-cyan font-mono text-xs">{member.specialization}</td>
-                              <td className="px-4 py-3 text-right">
-                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
-                                  member.status === 'READY' ? 'bg-tactical-green/10 text-tactical-green border border-tactical-green/30' : 'bg-tactical-muted/10 text-tactical-muted'
-                                }`}>
-                                  {member.status}
-                                </span>
+                        ) : (() => {
+                          const allMembers = [
+                            ...(activeUnitDetail.commander_name ? [{
+                              id: -1,
+                              name: activeUnitDetail.commander_name,
+                              rank: activeUnitDetail.commander_rank,
+                              nrp: activeUnitDetail.commander_nrp || 'N/A',
+                              unit_role: 'Komandan Kesatuan',
+                              status: 'READY'
+                            }] : []),
+                            ...members
+                          ].filter(m => 
+                            m.name.toLowerCase().includes(memberSearchQuery.toLowerCase()) || 
+                            m.nrp.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
+                            (m.unit_role && m.unit_role.toLowerCase().includes(memberSearchQuery.toLowerCase()))
+                          );
+
+                          return allMembers.length > 0 ? (
+                            allMembers.map((member) => (
+                              <tr key={member.id} className={`border-b border-tactical-border/30 hover:bg-tactical-green/5 transition-colors ${member.id === -1 ? 'bg-tactical-green/5' : ''}`}>
+                                <td className="px-4 py-3">
+                                  <div className={`font-bold ${member.id === -1 ? 'text-tactical-green' : 'text-tactical-text'}`}>{member.name}</div>
+                                  <div className="text-[10px] font-mono text-tactical-muted">{member.nrp}</div>
+                                </td>
+                                <td className="px-4 py-3 text-tactical-muted font-mono text-xs">{member.rank}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                                    member.id === -1 ? 'bg-tactical-green/10 text-tactical-green border-tactical-green/30' : 'bg-tactical-panel text-tactical-text border-tactical-border'
+                                  }`}>
+                                    {member.unit_role || 'Anggota'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                                    member.status === 'READY' ? 'bg-tactical-green/10 text-tactical-green border border-tactical-green/30' : 'bg-tactical-muted/10 text-tactical-muted'
+                                  }`}>
+                                    {member.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={4} className="px-4 py-10 text-center font-mono text-tactical-muted text-xs">
+                                TIDAK ADA ANGGOTA YANG COCOK
                               </td>
                             </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={4} className="px-4 py-10 text-center font-mono text-tactical-muted text-xs">
-                              BELUM ADA ANGGOTA TERDAFTAR
-                            </td>
-                          </tr>
-                        )}
+                          );
+                        })()}
                       </tbody>
                     </table>
                   </div>
@@ -344,7 +412,21 @@ export default function UnitsClient({ units }: UnitsClientProps) {
               </div>
 
               {/* Footer */}
-              <div className="p-4 border-t border-tactical-border bg-tactical-panel/30 flex justify-end">
+              <div className="p-4 border-t border-tactical-border bg-tactical-panel/30 flex justify-between items-center">
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => router.push(`/kesatuan/edit/${activeUnitDetail.id}`)}
+                    className="px-4 py-2 bg-tactical-cyan/10 border border-tactical-cyan/30 text-tactical-cyan text-xs font-mono rounded flex items-center gap-2 hover:bg-tactical-cyan hover:text-tactical-bg transition-all"
+                  >
+                    <Edit size={14} /> EDIT DATA
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(activeUnitDetail.id)}
+                    className="px-4 py-2 bg-tactical-red/10 border border-tactical-red/30 text-tactical-red text-xs font-mono rounded flex items-center gap-2 hover:bg-tactical-red hover:text-tactical-bg transition-all"
+                  >
+                    <Trash2 size={14} /> DELETE DATA
+                  </button>
+                </div>
                 <button 
                   onClick={() => setActiveUnitDetail(null)}
                   className="px-6 py-2 bg-tactical-border text-tactical-text text-sm font-mono rounded hover:bg-tactical-muted/20 transition-colors"

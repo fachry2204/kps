@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Building2, 
   MapPin, 
@@ -13,11 +13,12 @@ import {
   UserPlus,
   Trash2,
   X,
+  CheckCircle2,
   Shield
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { addUnit } from "@/app/actions";
+import { updateUnit } from "@/app/actions";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 
@@ -37,33 +38,57 @@ interface Person {
   unit_role?: string;
 }
 
-interface AddUnitFormProps {
-  personnel: Person[];
+interface Unit {
+  id: number;
+  unit_name: string;
+  unit_type: string;
+  logo_url: string | null;
+  location: string;
+  coordinates: string | null;
+  commander_id?: number;
+  commander_name?: string;
 }
 
-export default function AddUnitForm({ personnel }: AddUnitFormProps) {
+interface EditUnitFormProps {
+  unit: Unit;
+  personnel: Person[];
+  existingMembers: Person[];
+}
+
+export default function EditUnitForm({ unit, personnel, existingMembers }: EditUnitFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCommander, setSelectedCommander] = useState<Person | null>(null);
+  const [selectedCommander, setSelectedCommander] = useState<Person | null>(
+    unit.commander_id ? { id: unit.commander_id, name: unit.commander_name || "", rank: "", nrp: "", unit_id: unit.id, unit_name: unit.unit_name } : null
+  );
   const [showCommanderList, setShowCommanderList] = useState(false);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [logoName, setLogoName] = useState<string | null>(null);
-  const [showMap, setShowMap] = useState(false);
-  const [coordinates, setCoordinates] = useState("");
-  const [address, setAddress] = useState("");
-  const [geocoding, setGeocoding] = useState(false);
-  const [selectedMembers, setSelectedMembers] = useState<Person[]>([]);
-  const [showMemberModal, setShowMemberModal] = useState(false);
-  const [memberSearchQuery, setMemberSearchQuery] = useState("");
   const [addingRoleFor, setAddingRoleFor] = useState<number | null>(null);
   const [tempRole, setTempRole] = useState("");
+  const [logoPreview, setLogoPreview] = useState<string | null>(unit.logo_url);
+  const [logoName, setLogoName] = useState<string | null>(null);
+  const [showMap, setShowMap] = useState(false);
+  const [coordinates, setCoordinates] = useState(unit.coordinates || "");
+  const [address, setAddress] = useState(unit.location || "");
+  const [geocoding, setGeocoding] = useState(false);
+  
+  const [selectedMembers, setSelectedMembers] = useState<Person[]>(existingMembers || []);
+  const [showMemberModal, setShowMemberModal] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [assignmentWarning, setAssignmentWarning] = useState<{
     person: Person;
     type: 'COMMANDER' | 'MEMBER';
     role?: string;
   } | null>(null);
   const [commanderWarning, setCommanderWarning] = useState<Person | null>(null);
+
+  useEffect(() => {
+    if (unit.commander_id && personnel.length > 0) {
+      const found = personnel.find(p => p.id === unit.commander_id);
+      if (found) setSelectedCommander(found);
+    }
+  }, [unit.commander_id, personnel]);
 
   const handleGeocode = async () => {
     setShowMap(true);
@@ -73,14 +98,14 @@ export default function AddUnitForm({ personnel }: AddUnitFormProps) {
     try {
       const searchUrl = `/api/geocode?q=${encodeURIComponent(address)}`;
       const response = await fetch(searchUrl);
-
+      
       if (!response.ok) {
         if (response.status === 429) {
           throw new Error("Layanan peta sedang sibuk (Terlalu banyak permintaan). Silakan gunakan peta manual.");
         }
         throw new Error(`Network response was not ok (${response.status})`);
       }
-
+      
       const data = await response.json();
       
       if (data && data.length > 0) {
@@ -122,36 +147,29 @@ export default function AddUnitForm({ personnel }: AddUnitFormProps) {
     const formData = new FormData(formElement);
     
     const data = {
+      id: unit.id,
       unit_name: formData.get("unit_name") as string,
       unit_type: formData.get("unit_type") as string,
       location: formData.get("location") as string,
       coordinates: formData.get("coordinates") as string,
       commander_id: selectedCommander?.id.toString(),
-      members: selectedMembers.map(m => ({ id: m.id, role: m.unit_role || 'Anggota' })),
-      logoBase64: logoPreview,
+      members: selectedMembers.map(m => ({ id: m.id, role: (m as any).unit_role || 'Anggota' })),
+      logoBase64: logoPreview !== unit.logo_url ? logoPreview : null,
       logoName: logoName
     };
 
     try {
-      const response = await fetch("/api/units", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
+      const response = await updateUnit(data);
 
-      const result = await response.json();
-
-      if (result.success) {
-        router.push("/kesatuan");
+      if (response.success) {
+        setShowSuccessModal(true);
         router.refresh();
       } else {
-        alert("Gagal menyimpan data: " + result.error);
+        alert("Gagal memperbarui data: " + response.error);
       }
     } catch (error: any) {
-      console.error("Failed to add unit:", error);
-      alert("Terjadi kesalahan sistem saat menghubungi server. Silakan coba lagi.");
+      console.error("Failed to update unit:", error);
+      alert("Terjadi kesalahan sistem.");
     } finally {
       setLoading(false);
     }
@@ -167,8 +185,8 @@ export default function AddUnitForm({ personnel }: AddUnitFormProps) {
             </button>
           </Link>
           <div>
-            <h2 className="text-2xl font-bold text-tactical-text">TAMBAHKAN KESATUAN BARU</h2>
-            <p className="text-tactical-muted font-mono text-sm">UNIT REGISTRATION SYSTEM</p>
+            <h2 className="text-2xl font-bold text-tactical-text">EDIT DATA KESATUAN</h2>
+            <p className="text-tactical-muted font-mono text-sm">UNIT INFORMATION UPDATE</p>
           </div>
         </div>
       </div>
@@ -215,6 +233,7 @@ export default function AddUnitForm({ personnel }: AddUnitFormProps) {
                   required
                   name="unit_name"
                   type="text" 
+                  defaultValue={unit.unit_name}
                   placeholder="Contoh: Grup 1 Para Komando"
                   className="w-full bg-tactical-bg border border-tactical-border rounded px-4 py-2.5 text-sm text-tactical-text focus:outline-none focus:border-tactical-green transition-colors"
                 />
@@ -226,6 +245,7 @@ export default function AddUnitForm({ personnel }: AddUnitFormProps) {
                 </label>
                 <select 
                   name="unit_type"
+                  defaultValue={unit.unit_type}
                   className="w-full bg-tactical-bg border border-tactical-border rounded px-4 py-2.5 text-sm text-tactical-text focus:outline-none focus:border-tactical-green transition-colors"
                 >
                   <option value="PARA_KOMANDO">PARA KOMANDO</option>
@@ -282,28 +302,25 @@ export default function AddUnitForm({ personnel }: AddUnitFormProps) {
                 </div>
               </div>
 
-              {showMap && (
-                <div className="pt-2">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-[10px] font-mono text-tactical-muted uppercase">TACTICAL GRID PREVIEW</span>
-                    <button 
-                      type="button" 
-                      onClick={() => setShowMap(false)}
-                      className="text-[10px] font-mono text-tactical-red hover:underline"
-                    >
-                      CLOSE MAP
-                    </button>
-                  </div>
+              <div className="pt-2">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[10px] font-mono text-tactical-muted uppercase">TACTICAL GRID PREVIEW</span>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowMap(!showMap)}
+                    className="text-[10px] font-mono text-tactical-cyan hover:underline"
+                  >
+                    {showMap ? "HIDE MAP" : "SHOW MAP"}
+                  </button>
+                </div>
+                {showMap && (
                   <LocationPicker 
                     initialLocation={coordinates ? (coordinates.split(',').map(Number) as [number, number]) : [-6.1754, 106.8272]} 
                     onLocationSelected={(lat, lng) => setCoordinates(`${lat.toFixed(6)}, ${lng.toFixed(6)}`)}
                     hasLocation={!!coordinates}
                   />
-                  <p className="text-[10px] font-mono text-tactical-muted mt-2 uppercase">
-                    * KLIK PADA PETA ATAU GESER PIN UNTUK MENENTUKAN LOKASI PERSIS
-                  </p>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Commander Selection */}
@@ -354,24 +371,21 @@ export default function AddUnitForm({ personnel }: AddUnitFormProps) {
                         {filteredPersonnel.map((person) => (
                           <div 
                             key={person.id}
-                            onClick={() => {
-                              if (person.unit_name) {
-                                setAssignmentWarning({ person, type: 'COMMANDER' });
-                              } else {
-                                setSelectedCommander(person);
-                              }
-                              setShowCommanderList(false);
-                              setSearchQuery("");
-                            }}
+                             onClick={() => {
+                               if (person.unit_id && person.unit_id !== unit.id) {
+                                 setAssignmentWarning({ person, type: 'COMMANDER' });
+                               } else {
+                                 setSelectedCommander(person);
+                               }
+                               setShowCommanderList(false);
+                               setSearchQuery("");
+                             }}
                             className="p-3 hover:bg-tactical-border cursor-pointer transition-colors border-b border-tactical-border/50 last:border-0"
                           >
                             <div className="text-sm font-bold text-tactical-text">{person.name}</div>
                             <div className="text-[10px] font-mono text-tactical-muted">{person.rank} - {person.nrp}</div>
                           </div>
                         ))}
-                        {filteredPersonnel.length === 0 && (
-                          <div className="p-4 text-center text-xs text-tactical-muted font-mono">PERSONEL TIDAK DITEMUKAN</div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -426,6 +440,7 @@ export default function AddUnitForm({ personnel }: AddUnitFormProps) {
                           </td>
                         </tr>
                       )}
+
                       {/* Normal Members (Sorted by Hierarchy) */}
                       {[...selectedMembers]
                         .sort((a, b) => {
@@ -486,7 +501,7 @@ export default function AddUnitForm({ personnel }: AddUnitFormProps) {
                 ) : (
                   <>
                     <Save size={18} />
-                    SIMPAN DATA
+                    SIMPAN PERUBAHAN
                   </>
                 )}
               </button>
@@ -675,20 +690,20 @@ export default function AddUnitForm({ personnel }: AddUnitFormProps) {
                             <div className="flex gap-2">
                               <button
                                 type="button"
-                              onClick={() => {
-                                if (person.commanded_unit_name) {
-                                  setCommanderWarning(person);
-                                  return;
-                                }
+                                onClick={() => {
+                                  if (person.commanded_unit_name) {
+                                    setCommanderWarning(person);
+                                    return;
+                                  }
 
-                                if (person.unit_name) {
-                                  setAssignmentWarning({ person, type: 'MEMBER', role: tempRole || 'Anggota Personil' });
-                                } else {
-                                  setSelectedMembers([...selectedMembers, { ...person, unit_role: tempRole || 'Anggota Personil' }]);
-                                }
-                                setAddingRoleFor(null);
-                                setTempRole("");
-                              }}
+                                  if (person.unit_id && person.unit_id !== unit.id) {
+                                    setAssignmentWarning({ person, type: 'MEMBER', role: tempRole || 'Anggota Personil' });
+                                  } else {
+                                    setSelectedMembers([...selectedMembers, { ...person, unit_role: tempRole || 'Anggota Personil' }]);
+                                  }
+                                  setAddingRoleFor(null);
+                                  setTempRole("");
+                                }}
                                 className="px-3 py-1 bg-tactical-cyan/10 border border-tactical-cyan text-tactical-cyan rounded text-[10px] font-mono hover:bg-tactical-cyan hover:text-tactical-bg"
                               >
                                 KONFIRMASI
@@ -726,9 +741,6 @@ export default function AddUnitForm({ personnel }: AddUnitFormProps) {
                   {memberSearchQuery.length > 0 && personnel.filter(p => !selectedMembers.some(m => m.id === p.id) && (p.name.toLowerCase().includes(memberSearchQuery.toLowerCase()) || p.nrp.includes(memberSearchQuery))).length === 0 && (
                     <div className="py-10 text-center font-mono text-tactical-muted text-xs uppercase">DATA TIDAK DITEMUKAN</div>
                   )}
-                  {memberSearchQuery.length === 0 && (
-                    <div className="py-10 text-center font-mono text-tactical-muted text-xs uppercase italic">MASUKKAN NAMA ATAU NRP UNTUK MEMULAI PENCARIAN</div>
-                  )}
                 </div>
               </div>
               
@@ -738,6 +750,44 @@ export default function AddUnitForm({ personnel }: AddUnitFormProps) {
                   className="px-6 py-2 bg-tactical-green text-tactical-bg text-xs font-bold font-mono rounded hover:bg-tactical-green/90 transition-colors"
                 >
                   SELESAI
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Success Modal */}
+      <AnimatePresence>
+        {showSuccessModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm tactical-glass tactical-border p-8 flex flex-col items-center text-center space-y-6"
+            >
+              <div className="w-20 h-20 rounded-full bg-tactical-green/10 border border-tactical-green flex items-center justify-center">
+                <CheckCircle2 size={40} className="text-tactical-green animate-bounce" />
+              </div>
+              
+              <div>
+                <h3 className="text-xl font-bold text-tactical-text font-mono uppercase tracking-tighter">PEMBARUAN BERHASIL</h3>
+                <p className="text-sm text-tactical-muted font-mono mt-2">Data Kesatuan telah diperbarui dalam database PUSKODAL.</p>
+              </div>
+
+              <div className="w-full pt-4">
+                <button 
+                  onClick={() => router.push("/kesatuan")}
+                  className="w-full py-3 bg-tactical-green text-tactical-bg font-bold font-mono rounded hover:bg-tactical-green/90 transition-all uppercase tracking-widest"
+                >
+                  KEMBALI KE DAFTAR
                 </button>
               </div>
             </motion.div>
