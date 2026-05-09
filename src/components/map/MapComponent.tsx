@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Circle, LayersControl } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Circle, LayersControl, LayerGroup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { Crosshair, ShieldAlert } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // Fix leafet default icon issue in Next.js
 const customIcon = new L.Icon({
@@ -24,19 +25,31 @@ const tacticalIcon = new L.DivIcon({
   iconAnchor: [6, 6]
 });
 
-export default function MapComponent() {
+export default function MapComponent({ isFullScreen = false }: { isFullScreen?: boolean }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  if (!mounted) return <div className="w-full h-[600px] bg-tactical-bg flex items-center justify-center text-tactical-green">INITIALIZING SATELLITE LINK...</div>;
+  if (!mounted) return (
+    <div className={cn(
+      "w-full bg-tactical-bg flex items-center justify-center text-tactical-green",
+      isFullScreen ? "h-screen" : "h-[600px]"
+    )}>
+      INITIALIZING SATELLITE LINK...
+    </div>
+  );
 
-  const center: [number, number] = [-6.200000, 106.816666]; // Jakarta
+  const center: [number, number] = [-0.7893, 113.9213]; // Indonesia Center
   
   return (
-    <div className="relative w-full h-[600px] rounded-lg overflow-hidden tactical-border border-tactical-green">
+    <div className={cn(
+      "relative w-full overflow-hidden transition-all duration-500",
+      isFullScreen 
+        ? "h-screen w-screen" 
+        : "h-[600px] rounded-lg tactical-border border-tactical-green"
+    )}>
       {/* Overlay UI elements */}
       <div className="absolute top-4 right-4 z-[400] flex flex-col gap-2 pointer-events-none">
         <div className="tactical-glass p-3 rounded pointer-events-auto border-tactical-border border">
@@ -50,22 +63,30 @@ export default function MapComponent() {
 
       <MapContainer 
         center={center} 
-        zoom={11} 
-        style={{ height: '100%', width: '100%', backgroundColor: '#070b09' }}
+        zoom={5} 
+        style={{ height: '100%', width: '100%', backgroundColor: '#f8f9fa' }}
         zoomControl={false}
+        attributionControl={false}
       >
         <LayersControl position="bottomright">
-          <LayersControl.BaseLayer checked name="Tactical Dark">
+          <LayersControl.BaseLayer checked name="Tactical Light">
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
             />
           </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="Satellite">
-            <TileLayer
-              attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-            />
+          <LayersControl.BaseLayer name="Satellite Hybrid">
+            <LayerGroup>
+              <TileLayer
+                attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              />
+              <TileLayer
+                attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
+                url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png"
+                zIndex={1000}
+              />
+            </LayerGroup>
           </LayersControl.BaseLayer>
         </LayersControl>
 

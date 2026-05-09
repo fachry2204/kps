@@ -10,7 +10,7 @@ interface StatCardProps {
   icon: LucideIcon;
   trend?: string;
   trendUp?: boolean;
-  color?: "green" | "red" | "cyan" | "muted";
+  color?: "green" | "red" | "cyan" | "muted" | "yellow";
   delay?: number;
 }
 
@@ -29,6 +29,7 @@ export function StatCard({
     red: "text-tactical-red border-tactical-red bg-tactical-red/10 shadow-[0_0_15px_rgba(255,51,51,0.1)]",
     cyan: "text-tactical-cyan border-tactical-cyan bg-tactical-cyan/10 shadow-[0_0_15px_rgba(0,240,255,0.1)]",
     muted: "text-tactical-muted border-tactical-muted bg-tactical-muted/10",
+    yellow: "text-yellow-400 border-yellow-400 bg-yellow-400/10 shadow-[0_0_15px_rgba(250,204,21,0.1)]",
   };
 
   return (

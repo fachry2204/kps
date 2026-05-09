@@ -30,9 +30,19 @@ export function Sidebar() {
 
   return (
     <div className="w-64 h-screen fixed top-0 left-0 flex flex-col bg-tactical-panel border-r border-tactical-border z-40">
+      {/* Camouflage Background Overlay */}
+      <div 
+        className="absolute inset-0 z-[-1] opacity-100 pointer-events-none"
+        style={{ 
+          backgroundImage: 'url("/camo-sidebar.jpg")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          mixBlendMode: 'overlay'
+        }}
+      />
       <div className="p-6 flex items-center gap-3 border-b border-tactical-border">
-        <div className="w-10 h-10 rounded bg-tactical-green/20 border border-tactical-green flex items-center justify-center">
-          <ShieldAlert className="text-tactical-green" size={24} />
+        <div className="w-10 h-10 rounded-full bg-tactical-green/10 border border-tactical-green/30 flex items-center justify-center overflow-hidden">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/6/61/Lambang_Kopassus.svg" alt="Kopassus" className="w-8 h-8 object-contain" />
         </div>
         <div>
           <h1 className="text-tactical-green font-bold text-lg leading-tight tracking-wider">PUSKODAL</h1>
