@@ -13,12 +13,15 @@ import {
   Package, 
   Settings,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Radio,
+  BarChart3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Statistik", href: "/statistik", icon: BarChart3 },
   { name: "Map", href: "/map", icon: Map },
   { name: "Intelijen", href: "/intel", icon: ShieldAlert },
   { 
@@ -28,6 +31,15 @@ const navigation = [
     subItems: [
       { name: "Operasi Dalam Negeri", href: "/gelar-operasi/dalam-negeri" },
       { name: "Operasi Luar Negeri", href: "/gelar-operasi/luar-negeri" },
+    ]
+  },
+  {
+    name: "Komunikasi",
+    href: "/komunikasi",
+    icon: Radio,
+    subItems: [
+      { name: "Chat", href: "/komunikasi/chat" },
+      { name: "VCON", href: "/komunikasi/vcon" },
     ]
   },
   { name: "Personil", href: "/personnel", icon: Users },

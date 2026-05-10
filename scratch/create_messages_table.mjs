@@ -1,0 +1,32 @@
+import mysql from 'mysql2/promise';
+
+const pool = mysql.createPool({
+  host: 'localhost',
+  user: 'root',
+  password: '',
+  database: 'kpsdata',
+});
+
+async function run() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        sender_id INT NOT NULL,
+        receiver_id INT NOT NULL,
+        message_text TEXT NOT NULL,
+        status ENUM('sent', 'delivered', 'read') DEFAULT 'sent',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (sender_id) REFERENCES personnel(id) ON DELETE CASCADE,
+        FOREIGN KEY (receiver_id) REFERENCES personnel(id) ON DELETE CASCADE
+      );
+    `);
+    console.log("messages table created successfully.");
+  } catch (err) {
+    console.error("Error creating table:", err);
+  } finally {
+    process.exit();
+  }
+}
+
+run();

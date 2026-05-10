@@ -124,7 +124,13 @@ export default function MapPage() {
                   </button>
                 )}
               <button 
-                onClick={() => { setActiveCategory(null); setSearchQuery(""); setShowDataModal(false); }}
+                onClick={() => { 
+                  setActiveCategory(null); 
+                  setSearchQuery(""); 
+                  setShowDataModal(false); 
+                  setCenter([-0.7893, 113.9213]);
+                  setZoom(5);
+                }}
                 className={`w-full text-left bg-tactical-bg border rounded-md p-2 hover:bg-tactical-green hover:text-tactical-bg transition-colors font-bold tracking-wider text-xs ${activeCategory === null ? 'border-tactical-green text-tactical-green' : 'border-tactical-border text-tactical-text'}`}
               >
                 TAMPILKAN SEMUA

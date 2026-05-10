@@ -4,6 +4,8 @@ import { Package, Truck, AlertTriangle, PenTool, Search, Plus, Filter, Image as 
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { deleteLogistics } from "@/app/actions";
 
 interface LogisticItem {
   id: number;
@@ -21,6 +23,19 @@ interface LogisticsClientProps {
 }
 
 export default function LogisticsClient({ items }: LogisticsClientProps) {
+  const router = useRouter();
+
+  const handleDelete = async (id: number) => {
+    if (confirm("Apakah Anda yakin ingin menghapus peralatan ini?")) {
+      const res = await deleteLogistics(id);
+      if (res.success) {
+        router.refresh();
+      } else {
+        alert("Gagal menghapus: " + res.error);
+      }
+    }
+  };
+
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
 
@@ -173,13 +188,17 @@ export default function LogisticsClient({ items }: LogisticsClientProps) {
                   </td>
                   <td className="py-3 px-4 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button className="p-1.5 text-tactical-cyan hover:bg-tactical-cyan/10 rounded transition-colors" title="View">
-                        <Eye size={16} />
-                      </button>
-                      <button className="p-1.5 text-tactical-green hover:bg-tactical-green/10 rounded transition-colors" title="Edit">
-                        <Edit size={16} />
-                      </button>
-                      <button className="p-1.5 text-tactical-red hover:bg-tactical-red/10 rounded transition-colors" title="Delete">
+                      <Link href={`/logistics/detail/${item.id}`}>
+                        <button className="p-1.5 text-tactical-cyan hover:bg-tactical-cyan/10 rounded transition-colors" title="View">
+                          <Eye size={16} />
+                        </button>
+                      </Link>
+                      <Link href={`/logistics/edit/${item.id}`}>
+                        <button className="p-1.5 text-tactical-green hover:bg-tactical-green/10 rounded transition-colors" title="Edit">
+                          <Edit size={16} />
+                        </button>
+                      </Link>
+                      <button onClick={() => handleDelete(item.id)} className="p-1.5 text-tactical-red hover:bg-tactical-red/10 rounded transition-colors" title="Delete">
                         <Trash2 size={16} />
                       </button>
                     </div>

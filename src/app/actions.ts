@@ -3,6 +3,35 @@
 import pool from "@/lib/db";
 import fs from "fs/promises";
 import path from "path";
+import crypto from "crypto";
+
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'kps_secure_key_1234567890123456';
+const ENCRYPTION_KEY_32 = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0')).slice(0, 32);
+const IV_LENGTH = 16;
+
+function encryptMessage(text: string) {
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY_32, iv);
+  let encrypted = cipher.update(text);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return iv.toString('hex') + ':' + encrypted.toString('hex');
+}
+
+function decryptMessage(text: string) {
+  if (!text) return text;
+  try {
+    const textParts = text.split(':');
+    if (textParts.length !== 2) return text; // Fallback if not encrypted in our format
+    const iv = Buffer.from(textParts[0], 'hex');
+    const encryptedText = Buffer.from(textParts[1], 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', ENCRYPTION_KEY_32, iv);
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString();
+  } catch (err) {
+    return text; // Fallback to original text if decryption fails
+  }
+}
 
 // 1. Dashboard Statistics
 export async function getDashboardStats() {
@@ -83,6 +112,15 @@ export async function getPersonnelOperationHistory(id: number) {
 export async function getLogistics() {
   const [rows] = await pool.query('SELECT * FROM logistics ORDER BY item_name ASC');
   return rows as any[];
+}
+
+export async function deleteLogistics(id: number) {
+  try {
+    await pool.query('DELETE FROM logistics WHERE id = ?', [id]);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 }
 
 // 4. Operations Data
@@ -597,3 +635,84 @@ export async function getPersonnelOpsHistory(personnelId: number) {
   );
   return rows as any[];
 }
+
+// 14. Chat System
+export async function getChatContacts(currentUserId: number) {
+  const [rows] = await pool.query(`
+    SELECT p.id, p.name, p.rank, p.photo_url,
+      (SELECT message_text FROM messages WHERE (sender_id = p.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = p.id) ORDER BY created_at DESC LIMIT 1) as lastMessage,
+      (SELECT created_at FROM messages WHERE (sender_id = p.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = p.id) ORDER BY created_at DESC LIMIT 1) as time,
+      (SELECT COUNT(*) FROM messages WHERE sender_id = p.id AND receiver_id = ? AND status != 'read') as unread
+    FROM personnel p
+    WHERE p.id != ?
+    ORDER BY time DESC, p.name ASC
+  `, [currentUserId, currentUserId, currentUserId, currentUserId, currentUserId, currentUserId]);
+  
+  const contacts = rows as any[];
+  contacts.forEach(c => {
+    if (c.lastMessage) {
+      c.lastMessage = decryptMessage(c.lastMessage);
+    }
+  });
+
+  return contacts;
+}
+
+export async function getChatMessages(user1Id: number, user2Id: number) {
+  const [rows] = await pool.query(`
+    SELECT * FROM messages
+    WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+    ORDER BY created_at ASC
+  `, [user1Id, user2Id, user2Id, user1Id]);
+  
+  // Mark as read if user1 (the fetcher) is the receiver
+  await pool.query(`
+    UPDATE messages SET status = 'read' WHERE sender_id = ? AND receiver_id = ? AND status != 'read'
+  `, [user2Id, user1Id]);
+
+  const messages = rows as any[];
+  messages.forEach(m => {
+    if (m.message_text) {
+      m.message_text = decryptMessage(m.message_text);
+    }
+  });
+
+  return messages;
+}
+
+export async function sendChatMessage(senderId: number, receiverId: number, text: string) {
+  try {
+    const encryptedText = encryptMessage(text);
+    await pool.query(
+      'INSERT INTO messages (sender_id, receiver_id, message_text) VALUES (?, ?, ?)',
+      [senderId, receiverId, encryptedText]
+    );
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+// 15. Notifications System
+export async function getNotifications(userId: number) {
+  const [rows] = await pool.query(`
+    SELECT * FROM notifications
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT 20
+  `, [userId]);
+  return rows as any[];
+}
+
+export async function markNotificationRead(notificationId: number) {
+  try {
+    await pool.query(
+      'UPDATE notifications SET is_read = TRUE WHERE id = ?',
+      [notificationId]
+    );
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+

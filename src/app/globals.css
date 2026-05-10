@@ -94,3 +94,7 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-tactical-highlight);
 }
+
+a, button, [role="button"] {
+  cursor: pointer;
+}
