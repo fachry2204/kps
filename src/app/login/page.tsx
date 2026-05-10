@@ -43,10 +43,22 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-tactical-bg flex items-center justify-center relative overflow-hidden">
-      {/* Background Grid & Scanlines */}
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-black">
+      {/* Background with Image & Overlays */}
       <div className="absolute inset-0 z-0">
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(27,40,32,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(27,40,32,0.2)_1px,transparent_1px)] bg-[size:30px_30px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_70%,transparent_100%)]"></div>
+        <img 
+          src="/images/bgkopasus.jpg" 
+          alt="Login Background" 
+          className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-luminosity"
+        />
+        <div className="absolute inset-0 bg-gradient-to-br from-black via-black/80 to-tactical-bg/40" />
+        
+        {/* Diagonal Lines Overlay */}
+        <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,rgba(0,0,0,0)_0,rgba(0,0,0,0)_5px,rgba(0,0,0,0.3)_5px,rgba(0,0,0,0.3)_6px)] pointer-events-none" />
+        
+        {/* Grid Overlay */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(27,40,32,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(27,40,32,0.1)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,#000_70%,transparent_100%)]" />
+        
         <div className="scanlines z-10" />
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, ChevronRight, Shield, Plus, MapPin, X, Users, Target, Search, Edit, Trash2 } from "lucide-react";
+import { Building2, ChevronRight, Shield, Plus, MapPin, X, Users, Target, Search, Edit, Trash2, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -147,12 +147,7 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                   </div>
                 </div>
               </div>
-              <button 
-                onClick={() => setActiveUnitDetail(unit)}
-                className="px-3 py-1.5 bg-tactical-green/10 border border-tactical-green/30 text-tactical-green text-[10px] font-bold font-mono rounded hover:bg-tactical-green hover:text-tactical-bg transition-all tracking-tighter"
-              >
-                LIHAT SATUAN
-              </button>
+
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-6">
@@ -169,7 +164,14 @@ export default function UnitsClient({ units }: UnitsClientProps) {
               </div>
             </div>
 
-
+            <div className="pt-4 border-t border-tactical-border/30">
+              <button 
+                onClick={() => setActiveUnitDetail(unit)}
+                className="w-full py-2 bg-tactical-green/10 border border-tactical-green/30 rounded flex items-center justify-center gap-2 text-[11px] font-bold text-tactical-green hover:bg-tactical-green hover:text-black transition-all uppercase tracking-widest"
+              >
+                Lihat Data Kesatuan <ArrowRight size={14} />
+              </button>
+            </div>
           </motion.div>
         ))}
       </div>

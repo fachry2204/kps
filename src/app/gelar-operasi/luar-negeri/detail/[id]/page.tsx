@@ -1,27 +1,29 @@
 import OperationDetailClient from "@/components/operations/OperationDetailClient";
-import { getOperations } from "@/app/actions";
-import { SATGAS_LUAR_NEGERI } from "@/lib/constants";
+import { getOpsLuarNegeri, getOpAssignments } from "@/app/actions";
 
-export default async function OperationDetailPage({ params }: { params: { id: string } }) {
-  const operations = await getOperations();
+export default async function OperationDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const operations = await getOpsLuarNegeri();
   
-  // Try to find in database first, then in static constants
-  let operation = operations.find(op => op.id.toString() === params.id);
+  // Try to find in database
+  const operation = operations.find(op => op.id.toString() === id);
+  const assignments = await getOpAssignments(Number(id), 'LUAR_NEGERI');
   
-  if (!operation) {
-    operation = SATGAS_LUAR_NEGERI.find(op => op.id.toString() === params.id) as any;
-  }
-  
-  // Map internal fields if using static data
+  // Map internal fields
   const initialData = operation ? {
-    operation_name: (operation as any).name || (operation as any).operation_name,
+    operation_name: operation.name || operation.operation_name,
     location: operation.location,
-    id: operation.id
+    id: operation.id,
+    personnel: operation.personnel,
+    status: operation.status,
+    type: operation.type,
+    commander: assignments.find(a => a.role === 'KOMANDAN'),
+    members: assignments.filter(a => a.role === 'ANGGOTA')
   } : null;
   
   return (
     <div className="p-6">
-      <OperationDetailClient id={params.id} initialData={initialData} />
+      <OperationDetailClient id={id} initialData={initialData} />
     </div>
   );
 }

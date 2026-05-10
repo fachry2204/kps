@@ -12,22 +12,34 @@ import {
   Flag,
   AlertTriangle,
   History,
-  FileText
+  FileText,
+  Edit,
+  Trash2,
+  User,
+  ExternalLink,
+  Loader2
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
+import { useState } from "react";
+import { deleteOpDalamNegeri, deleteOpLuarNegeri } from "@/app/actions";
+import Link from "next/link";
 
 export default function OperationDetailClient({ id, initialData }: { id: string, initialData: any }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Mock data for extended details to show a premium UI
   const details = {
-    name: initialData?.operation_name || `SATGAS OPS ${id}`,
-    code: `OPS-TAC-${String(id).padStart(3, '0')}`,
+    name: initialData?.operation_name || initialData?.name || (id !== "undefined" ? `SATGAS OPS ${id}` : "SATGAS OPS"),
+    code: `OPS-TAC-${id !== "undefined" ? String(id).padStart(3, '0') : "000"}`,
     location: initialData?.location || "Area of Responsibility",
-    status: "ACTIVE",
+    status: initialData?.status || "ACTIVE",
     priority: "HIGH",
     deploymentDate: "12 Jan 2026",
+    personnel: (initialData?.commander ? 1 : 0) + (initialData?.members?.length || 0),
+    type: initialData?.type || "Special Operations",
+    commander: initialData?.commander || null,
+    members: initialData?.members || [],
     objectives: [
       "Securing vital strategic infrastructure",
       "Intelligence gathering and reconnaissance",
@@ -42,8 +54,34 @@ export default function OperationDetailClient({ id, initialData }: { id: string,
     ]
   };
 
+  const handleDelete = async () => {
+    if (!confirm("Apakah Anda yakin ingin menghapus operasi ini?")) return;
+    setIsSubmitting(true);
+    try {
+      const isDalamNegeri = pathname.includes('/dalam-negeri/');
+      const res = isDalamNegeri 
+        ? await deleteOpDalamNegeri(Number(id))
+        : await deleteOpLuarNegeri(Number(id));
+      
+      if (res.success) {
+        router.push(isDalamNegeri ? '/gelar-operasi/dalam-negeri' : '/gelar-operasi/luar-negeri');
+        router.refresh();
+      } else {
+        alert("Gagal menghapus: " + res.error);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const editLink = pathname.includes('/dalam-negeri/') 
+    ? `/gelar-operasi/dalam-negeri/edit/${id}`
+    : `/gelar-operasi/luar-negeri/edit/${id}`;
+
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-tactical-border pb-6">
         <div className="flex items-center gap-4">
@@ -63,7 +101,7 @@ export default function OperationDetailClient({ id, initialData }: { id: string,
           </button>
           <div>
             <div className="flex items-center gap-3">
-              <h2 className="text-3xl font-bold text-tactical-text tracking-tighter uppercase">{details.name}</h2>
+              <h2 className="text-xl font-bold text-tactical-text tracking-tighter uppercase">{details.name}</h2>
               <span className="px-2 py-0.5 bg-tactical-green/10 text-tactical-green border border-tactical-green/30 text-[10px] font-mono rounded font-bold">
                 {details.status}
               </span>
@@ -73,61 +111,108 @@ export default function OperationDetailClient({ id, initialData }: { id: string,
         </div>
         
         <div className="flex gap-3">
-          <button className="px-4 py-2 bg-tactical-panel border border-tactical-border rounded text-xs font-mono text-tactical-text hover:bg-tactical-border transition-all">
-            EXPORT REPORT
-          </button>
-          <button className="px-4 py-2 bg-tactical-red/20 border border-tactical-red/50 rounded text-xs font-mono text-tactical-red font-bold hover:bg-tactical-red hover:text-white transition-all">
-            ALERT COMMAND
+          <Link 
+            href={editLink}
+            className="px-4 py-2 bg-tactical-cyan/10 border border-tactical-cyan/30 rounded text-xs font-mono text-tactical-cyan font-bold hover:bg-tactical-cyan hover:text-black transition-all flex items-center gap-2"
+          >
+            <Edit size={14} /> EDIT DATA
+          </Link>
+          <button 
+            onClick={handleDelete}
+            disabled={isSubmitting}
+            className="px-4 py-2 bg-tactical-red/10 border border-tactical-red/30 rounded text-xs font-mono text-tactical-red font-bold hover:bg-tactical-red hover:text-white transition-all flex items-center gap-2 disabled:opacity-50"
+          >
+            {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} DELETE
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Stats & Objectives */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Main Info Cards */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-3 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="tactical-glass tactical-border p-4">
-              <div className="text-[10px] font-mono text-tactical-muted mb-2 uppercase">Personnel Strength</div>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-tactical-cyan/10 rounded border border-tactical-cyan/30 text-tactical-cyan">
-                  <Users size={18} />
-                </div>
-                <div>
-                  <div className="text-xl font-bold text-tactical-text">450 <span className="text-xs font-normal text-tactical-muted font-mono">PX</span></div>
-                  <div className="text-[9px] font-mono text-tactical-green uppercase">Full Capacity</div>
-                </div>
+            <div className="tactical-glass tactical-border p-4 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Users size={48} className="text-tactical-cyan" />
               </div>
+              <div className="text-[10px] font-mono text-tactical-muted mb-2 uppercase">Kekuatan Personil</div>
+              <div className="text-2xl font-bold text-tactical-text">{details.personnel} <span className="text-xs font-normal text-tactical-muted font-mono">PX</span></div>
+              <div className="text-[9px] font-mono text-tactical-cyan uppercase mt-1">{details.type}</div>
             </div>
             
-            <div className="tactical-glass tactical-border p-4">
-              <div className="text-[10px] font-mono text-tactical-muted mb-2 uppercase">Deployment Time</div>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-tactical-yellow/10 rounded border border-tactical-yellow/30 text-tactical-yellow">
-                  <Calendar size={18} />
-                </div>
-                <div>
-                  <div className="text-xl font-bold text-tactical-text">120 <span className="text-xs font-normal text-tactical-muted font-mono">DAYS</span></div>
-                  <div className="text-[9px] font-mono text-tactical-muted uppercase">Since {details.deploymentDate}</div>
-                </div>
+            <div className="tactical-glass tactical-border p-4 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Calendar size={48} className="text-tactical-yellow" />
               </div>
+              <div className="text-[10px] font-mono text-tactical-muted mb-2 uppercase">Mission Duration</div>
+              <div className="text-2xl font-bold text-tactical-text">120 <span className="text-xs font-normal text-tactical-muted font-mono">DAYS</span></div>
+              <div className="text-[9px] font-mono text-tactical-muted uppercase mt-1">ESTABLISHED: {details.deploymentDate}</div>
             </div>
 
-            <div className="tactical-glass tactical-border p-4">
-              <div className="text-[10px] font-mono text-tactical-muted mb-2 uppercase">Strategic Priority</div>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-tactical-red/10 rounded border border-tactical-red/30 text-tactical-red">
-                  <Target size={18} />
+            <div className="tactical-glass tactical-border p-4 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Shield size={48} className="text-tactical-red" />
+              </div>
+              <div className="text-[10px] font-mono text-tactical-muted mb-2 uppercase">Operational Command</div>
+              <div className="text-2xl font-bold text-tactical-text">{details.priority}</div>
+              <div className="text-[9px] font-mono text-tactical-red uppercase mt-1 tracking-tighter">Level 5 Clearance Active</div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="tactical-glass tactical-border p-6">
+              <h3 className="text-sm font-bold text-tactical-text font-mono border-b border-tactical-border pb-3 mb-4 flex items-center gap-2 uppercase">
+                <Shield size={16} className="text-tactical-yellow" /> Komandan Operasi
+              </h3>
+              {details.commander ? (
+                <div className="flex items-center gap-4 p-4 bg-tactical-panel/50 border border-tactical-yellow/30 rounded-lg group">
+                  <div className="w-16 h-16 bg-tactical-bg border border-tactical-border rounded-full flex items-center justify-center text-tactical-muted relative overflow-hidden">
+                    <User size={32} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-lg font-bold text-tactical-text uppercase tracking-tighter">{details.commander.name}</div>
+                    <div className="text-xs font-mono text-tactical-yellow uppercase mb-1">{details.commander.rank}</div>
+                    <div className="text-[10px] font-mono text-tactical-muted">NRP: {details.commander.nrp}</div>
+                  </div>
+                  <Link href={`/personnel/${details.commander.id}`} className="p-2 hover:bg-tactical-yellow/10 rounded text-tactical-yellow transition-all">
+                    <ExternalLink size={18} />
+                  </Link>
                 </div>
-                <div>
-                  <div className="text-xl font-bold text-tactical-red">{details.priority}</div>
-                  <div className="text-[9px] font-mono text-tactical-muted uppercase">Level 5 Clearance</div>
+              ) : (
+                <div className="py-8 text-center text-xs font-mono text-tactical-muted italic border border-dashed border-tactical-border rounded">
+                  No commander assigned to this mission.
                 </div>
+              )}
+            </div>
+
+            <div className="tactical-glass tactical-border p-6">
+              <h3 className="text-sm font-bold text-tactical-text font-mono border-b border-tactical-border pb-3 mb-4 flex items-center gap-2 uppercase">
+                <Users size={16} className="text-tactical-cyan" /> Anggota Operasi ({details.members.length})
+              </h3>
+              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                {details.members.length > 0 ? (
+                  details.members.map((member: any) => (
+                    <div key={member.id} className="flex items-center gap-3 p-2 bg-tactical-panel/30 border border-tactical-border rounded hover:border-tactical-cyan/50 transition-all group">
+                      <div className="w-10 h-10 bg-tactical-bg border border-tactical-border rounded-full flex items-center justify-center text-tactical-muted">
+                        <User size={18} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-bold text-tactical-text truncate">{member.name}</div>
+                        <div className="text-[9px] font-mono text-tactical-muted uppercase">{member.rank} | {member.nrp}</div>
+                      </div>
+                      <Link href={`/personnel/${member.id}`} className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-tactical-cyan/10 rounded text-tactical-cyan transition-all">
+                        <ExternalLink size={14} />
+                      </Link>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-8 text-center text-xs font-mono text-tactical-muted italic border border-dashed border-tactical-border rounded">
+                    No members assigned.
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Mission Objectives */}
           <div className="tactical-glass tactical-border p-6">
             <h3 className="text-sm font-bold text-tactical-text font-mono border-b border-tactical-border pb-3 mb-4 flex items-center gap-2 uppercase">
               <Flag size={16} className="text-tactical-cyan" /> Mission Objectives
@@ -141,73 +226,22 @@ export default function OperationDetailClient({ id, initialData }: { id: string,
               ))}
             </ul>
           </div>
-
-          {/* Timeline / Recent Activity */}
-          <div className="tactical-glass tactical-border p-6">
-            <h3 className="text-sm font-bold text-tactical-text font-mono border-b border-tactical-border pb-3 mb-4 flex items-center gap-2 uppercase">
-              <History size={16} className="text-tactical-green" /> Operational Timeline
-            </h3>
-            <div className="space-y-6 relative before:absolute before:left-[7px] before:top-2 before:bottom-2 before:w-0.5 before:bg-tactical-border">
-              {details.timeline.map((item, i) => (
-                <div key={i} className="pl-6 relative">
-                  <div className="absolute left-0 top-1.5 w-4 h-4 rounded-full bg-tactical-panel border border-tactical-border flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 rounded-full bg-tactical-green" />
-                  </div>
-                  <div className="text-[10px] font-mono text-tactical-muted uppercase mb-1">{item.date}</div>
-                  <div className="text-sm text-tactical-text">{item.event}</div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
-        {/* Right Column: Intel & Map Preview */}
         <div className="space-y-6">
-          {/* Intelligence Summary */}
           <div className="tactical-glass border-l-4 border-l-tactical-yellow p-6 bg-tactical-yellow/5">
             <h3 className="text-sm font-bold text-tactical-yellow font-mono mb-3 flex items-center gap-2 uppercase">
-              <AlertTriangle size={16} /> Intelligence Summary
+              <AlertTriangle size={16} /> Intel Summary
             </h3>
-            <p className="text-xs text-tactical-text leading-relaxed font-mono">
-              {details.intelSummary}
-            </p>
-            <div className="mt-4 pt-4 border-t border-tactical-yellow/20 flex justify-between items-center">
-              <span className="text-[9px] font-mono text-tactical-muted uppercase">Intel Confidence: 85%</span>
-              <button className="text-[10px] font-bold text-tactical-yellow hover:underline uppercase tracking-tighter">VIEW SOURCE</button>
-            </div>
+            <p className="text-xs text-tactical-text leading-relaxed font-mono">{details.intelSummary}</p>
           </div>
-
-          {/* Operational Status */}
           <div className="tactical-glass tactical-border p-6">
             <h3 className="text-sm font-bold text-tactical-text font-mono mb-4 flex items-center gap-2 uppercase">
-              <Activity size={16} className="text-tactical-green" /> System Integrity
+              <Activity size={16} className="text-tactical-green" /> System Status
             </h3>
             <div className="space-y-4">
-              {[
-                { label: "Comms Link", status: "STABLE", color: "text-tactical-green" },
-                { label: "Supply Chain", status: "MODERATE", color: "text-tactical-yellow" },
-                { label: "Medevac Readiness", status: "STANDBY", color: "text-tactical-cyan" },
-                { label: "Air Support", status: "UNAVAILABLE", color: "text-tactical-red" }
-              ].map((item, i) => (
-                <div key={i} className="flex justify-between items-center">
-                  <span className="text-[11px] font-mono text-tactical-muted uppercase">{item.label}</span>
-                  <span className={`text-[10px] font-bold font-mono ${item.color}`}>{item.status}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Documents */}
-          <div className="tactical-glass tactical-border p-6">
-            <h3 className="text-sm font-bold text-tactical-text font-mono mb-4 flex items-center gap-2 uppercase">
-              <FileText size={16} /> Related Documents
-            </h3>
-            <div className="space-y-2">
-              {['MissionBriefing.pdf', 'AreaMap_v2.dwg', 'RulesOfEngagement.docx'].map((file, i) => (
-                <div key={i} className="p-2 bg-tactical-panel/50 border border-tactical-border rounded flex items-center justify-between group hover:border-tactical-green/50 cursor-pointer transition-all">
-                  <span className="text-[10px] font-mono text-tactical-muted group-hover:text-tactical-text">{file}</span>
-                  <Activity size={10} className="text-tactical-muted" />
-                </div>
+              {[{ label: "Comms Link", status: "STABLE", color: "text-tactical-green" }, { label: "Supply Line", status: "MODERATE", color: "text-tactical-yellow" }].map((item, i) => (
+                <div key={i} className="flex justify-between items-center"><span className="text-[10px] font-mono text-tactical-muted uppercase">{item.label}</span><span className={`text-[9px] font-bold font-mono ${item.color}`}>{item.status}</span></div>
               ))}
             </div>
           </div>

@@ -1,0 +1,436 @@
+"use client";
+
+import { motion, AnimatePresence } from "framer-motion";
+import { Shield, MapPin, Target, Plus, ArrowLeft, Loader2, Search, User, X, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { addOpDalamNegeri, addOpLuarNegeri, searchPersonnel, getPersonnelAssignment, assignPersonnelToOp } from "@/app/actions";
+
+interface AddOperationFormProps {
+  type: "DALAM_NEGERI" | "LUAR_NEGERI";
+}
+
+export default function AddOperationForm({ type }: AddOperationFormProps) {
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    location: "",
+    personnel: "0",
+    status: "ACTIVE",
+    readiness: "100",
+    type: ""
+  });
+
+  // Personnel State
+  const [commander, setCommander] = useState<any>(null);
+  const [members, setMembers] = useState<any[]>([]);
+  
+  // Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchTarget, setSearchTarget] = useState<"COMMANDER" | "MEMBER" | null>(null);
+
+  // Move Modal State
+  const [personnelToMove, setPersonnelToMove] = useState<any>(null);
+  const [pendingAssignment, setPendingAssignment] = useState<any>(null);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+      if (searchQuery.length > 1) {
+        setIsSearching(true);
+        const results = await searchPersonnel(searchQuery);
+        setSearchResults(results);
+        setIsSearching(false);
+      } else {
+        setSearchResults([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
+  const handleSelectPersonnel = async (person: any) => {
+    // Check if person is already assigned
+    const assignment = await getPersonnelAssignment(person.id);
+    
+    if (assignment) {
+      setPersonnelToMove({
+        ...person,
+        currentOp: assignment.op_name,
+        currentLocation: assignment.op_location
+      });
+      setPendingAssignment({ person, target: searchTarget });
+      return;
+    }
+
+    addPersonnel(person, searchTarget);
+  };
+
+  const addPersonnel = (person: any, target: any) => {
+    if (target === "COMMANDER") {
+      setCommander(person);
+    } else {
+      if (!members.find(m => m.id === person.id)) {
+        setMembers([...members, person]);
+      }
+    }
+    setSearchTarget(null);
+    setSearchQuery("");
+    setSearchResults([]);
+  };
+
+  const confirmMove = () => {
+    if (pendingAssignment) {
+      addPersonnel(pendingAssignment.person, pendingAssignment.target);
+    }
+    setPersonnelToMove(null);
+    setPendingAssignment(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commander) {
+      alert("Komandan Operasi harus dipilih.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = type === "DALAM_NEGERI" 
+        ? await addOpDalamNegeri(formData)
+        : await addOpLuarNegeri(formData);
+        
+      if (res.success && res.id) {
+        const opId = res.id;
+        
+        // Assign Commander
+        await assignPersonnelToOp({
+          personnelId: commander.id,
+          opType: type,
+          opId: opId,
+          role: "KOMANDAN",
+          moveIfAssigned: true // We already confirmed or it's new
+        });
+
+        // Assign Members
+        for (const member of members) {
+          await assignPersonnelToOp({
+            personnelId: member.id,
+            opType: type,
+            opId: opId,
+            role: "ANGGOTA",
+            moveIfAssigned: true
+          });
+        }
+
+        router.push(type === "DALAM_NEGERI" ? "/gelar-operasi/dalam-negeri" : "/gelar-operasi/luar-negeri");
+        router.refresh();
+      } else {
+        alert("Gagal: " + (res as any).error);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const backLink = type === "DALAM_NEGERI" ? "/gelar-operasi/dalam-negeri" : "/gelar-operasi/luar-negeri";
+
+  return (
+    <div className="w-full space-y-8">
+      <div className="flex items-center gap-4 border-b border-tactical-border pb-6">
+        <button 
+          onClick={() => router.push(backLink)}
+          className="p-2 hover:bg-tactical-border rounded-full text-tactical-muted hover:text-tactical-text transition-colors"
+        >
+          <ArrowLeft size={24} />
+        </button>
+        <div>
+          <h2 className="text-2xl font-bold text-tactical-text tracking-tighter flex items-center gap-3">
+            <Plus className="text-tactical-green" /> INITIALIZE {type === "DALAM_NEGERI" ? "DOMESTIC" : "INTERNATIONAL"} OPERATION
+          </h2>
+          <p className="text-tactical-muted font-mono text-xs mt-1 uppercase tracking-widest">
+            Tactical Deployment Configuration Portal
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Main Form (2 columns wide) */}
+        <div className="lg:col-span-2 space-y-8">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="tactical-glass tactical-border p-8"
+          >
+            <form id="opForm" onSubmit={handleSubmit} className="space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                  <label className="text-xs font-mono text-tactical-muted uppercase tracking-widest font-bold">Nama Satgas / Operasi</label>
+                  <div className="relative">
+                    <Shield className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-tactical-green" />
+                    <input 
+                      required
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      className="w-full bg-tactical-bg/50 border border-tactical-border rounded-lg p-2.5 pl-12 text-sm text-tactical-text focus:border-tactical-green outline-none font-mono transition-all"
+                      placeholder="ENTER TASK FORCE NAME..."
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-xs font-mono text-tactical-muted uppercase tracking-widest font-bold">Lokasi Penugasan</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-tactical-red" />
+                    <input 
+                      required
+                      value={formData.location}
+                      onChange={(e) => setFormData({...formData, location: e.target.value})}
+                      className="w-full bg-tactical-bg/50 border border-tactical-border rounded-lg p-2.5 pl-12 text-sm text-tactical-text focus:border-tactical-green outline-none font-mono transition-all"
+                      placeholder="ENTER GEOGRAPHIC LOCATION..."
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-xs font-mono text-tactical-muted uppercase tracking-widest font-bold">Tipe Operasi</label>
+                  <div className="relative">
+                    <Target className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-tactical-yellow" />
+                    <input 
+                      required
+                      value={formData.type}
+                      onChange={(e) => setFormData({...formData, type: e.target.value})}
+                      className="w-full bg-tactical-bg/50 border border-tactical-border rounded-lg p-2.5 pl-12 text-sm text-tactical-text focus:border-tactical-green outline-none font-mono transition-all"
+                      placeholder="ENTER MISSION TYPE..."
+                    />
+                  </div>
+                </div>
+              </div>
+            </form>
+          </motion.div>
+
+          {/* Personnel Selection */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Commander Section */}
+            <div className="tactical-glass tactical-border p-6 space-y-4">
+              <h3 className="text-sm font-bold text-tactical-text font-mono uppercase tracking-widest border-b border-tactical-border pb-2 flex justify-between items-center">
+                Komandan Operasi
+                {!commander && <button onClick={() => setSearchTarget("COMMANDER")} className="text-[10px] text-tactical-cyan hover:underline flex items-center gap-1"><Plus size={10} /> PILIH</button>}
+              </h3>
+              {commander ? (
+                <div className="flex items-center justify-between p-3 bg-tactical-panel/50 border border-tactical-cyan/30 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-tactical-cyan/10 rounded-full flex items-center justify-center text-tactical-cyan border border-tactical-cyan/20">
+                      <User size={20} />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-tactical-text">{commander.name}</div>
+                      <div className="text-[10px] font-mono text-tactical-muted uppercase">{commander.rank} | {commander.nrp}</div>
+                    </div>
+                  </div>
+                  <button onClick={() => setCommander(null)} className="text-tactical-muted hover:text-tactical-red transition-colors">
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                <div className="text-xs text-tactical-muted italic font-mono text-center py-4 border border-dashed border-tactical-border rounded-lg">
+                  No Commander Assigned
+                </div>
+              )}
+            </div>
+
+            {/* Members Section */}
+            <div className="tactical-glass tactical-border p-6 space-y-4">
+              <h3 className="text-sm font-bold text-tactical-text font-mono uppercase tracking-widest border-b border-tactical-border pb-2 flex justify-between items-center">
+                Anggota Operasi ({members.length})
+                <button onClick={() => setSearchTarget("MEMBER")} className="text-[10px] text-tactical-cyan hover:underline flex items-center gap-1"><Plus size={10} /> TAMBAH</button>
+              </h3>
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                {members.length > 0 ? (
+                  members.map(member => (
+                    <div key={member.id} className="flex items-center justify-between p-2 bg-tactical-panel/30 border border-tactical-border rounded flex-shrink-0">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-tactical-panel rounded-full flex items-center justify-center text-tactical-muted text-xs">
+                          <User size={14} />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-tactical-text">{member.name}</div>
+                          <div className="text-[9px] font-mono text-tactical-muted">{member.rank}</div>
+                        </div>
+                      </div>
+                      <button onClick={() => setMembers(members.filter(m => m.id !== member.id))} className="text-tactical-muted hover:text-tactical-red transition-colors">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-xs text-tactical-muted italic font-mono text-center py-4 border border-dashed border-tactical-border rounded-lg">
+                    No Members Assigned
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Sidebar */}
+        <div className="space-y-8">
+          <div className="tactical-glass border-l-4 border-l-tactical-green p-6">
+            <h3 className="text-sm font-bold text-tactical-text font-mono mb-4 uppercase">Operational Readiness</h3>
+            <div className="space-y-4">
+              <div className="flex justify-between text-xs font-mono">
+                <span className="text-tactical-muted">Status</span>
+                <span className="text-tactical-green font-bold">READY</span>
+              </div>
+              <div className="flex justify-between text-xs font-mono">
+                <span className="text-tactical-muted">Chain of Command</span>
+                <span className={commander ? "text-tactical-green" : "text-tactical-red"}>{commander ? "ESTABLISHED" : "PENDING"}</span>
+              </div>
+              <div className="flex justify-between text-xs font-mono">
+                <span className="text-tactical-muted">Deployment Force</span>
+                <span className="text-tactical-cyan">{members.length} Members</span>
+              </div>
+            </div>
+            <div className="mt-8">
+              <button 
+                form="opForm"
+                disabled={isSubmitting || !commander}
+                className="w-full py-4 bg-tactical-green text-black font-black text-sm font-mono rounded hover:bg-tactical-green/80 transition-all flex items-center justify-center gap-2 uppercase tracking-widest disabled:opacity-50"
+              >
+                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : <Target size={20} />}
+                INITIALIZE DEPLOYMENT
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Personnel Search Overlay */}
+      <AnimatePresence>
+        {searchTarget && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSearchTarget(null)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-xl tactical-glass tactical-border p-8"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-tactical-text flex items-center gap-2 uppercase tracking-tighter">
+                    <Search className="text-tactical-cyan" /> CARI PERSONIL
+                  </h3>
+                  <p className="text-xs font-mono text-tactical-muted uppercase mt-1">Assign to {searchTarget === 'COMMANDER' ? 'Commander' : 'Member'} Role</p>
+                </div>
+                <button onClick={() => setSearchTarget(null)} className="text-tactical-muted hover:text-tactical-red">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-tactical-muted" />
+                  <input 
+                    autoFocus
+                    placeholder="Masukkan Nama atau NRP..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-tactical-bg border border-tactical-border rounded-lg p-3 pl-10 text-sm text-tactical-text focus:border-tactical-cyan outline-none font-mono"
+                  />
+                </div>
+
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
+                  {isSearching ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 className="animate-spin text-tactical-cyan" size={32} />
+                    </div>
+                  ) : searchResults.length > 0 ? (
+                    searchResults.map(person => (
+                      <button 
+                        key={person.id}
+                        onClick={() => handleSelectPersonnel(person)}
+                        className="w-full flex items-center justify-between p-4 bg-tactical-panel/50 border border-tactical-border rounded-lg hover:border-tactical-cyan hover:bg-tactical-cyan/5 transition-all text-left"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 bg-tactical-bg rounded-full flex items-center justify-center text-tactical-muted">
+                            <User size={20} />
+                          </div>
+                          <div>
+                            <div className="text-sm font-bold text-tactical-text">{person.name}</div>
+                            <div className="text-[10px] font-mono text-tactical-muted uppercase">{person.rank} | {person.nrp}</div>
+                            <div className="text-[10px] font-mono text-tactical-cyan mt-0.5">{person.specialization}</div>
+                          </div>
+                        </div>
+                        <Plus size={20} className="text-tactical-muted" />
+                      </button>
+                    ))
+                  ) : searchQuery.length > 1 ? (
+                    <div className="text-center py-10 text-tactical-muted font-mono text-xs uppercase">No Results Found</div>
+                  ) : (
+                    <div className="text-center py-10 text-tactical-muted font-mono text-xs uppercase">Type to Search Personnel...</div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Move Confirmation Modal */}
+      <AnimatePresence>
+        {personnelToMove && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/95 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="relative w-full max-w-md tactical-glass border-2 border-tactical-yellow p-8 text-center"
+            >
+              <AlertCircle size={48} className="text-tactical-yellow mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-tactical-text uppercase tracking-tighter mb-2">DUPLICATE ASSIGNMENT DETECTED</h3>
+              <p className="text-sm text-tactical-text font-mono mb-6">
+                Personil <span className="text-tactical-yellow font-bold">{personnelToMove.name}</span> saat ini sedang menjalankan operasi di:
+                <br />
+                <span className="text-tactical-cyan uppercase mt-2 block">{personnelToMove.currentOp} ({personnelToMove.currentLocation})</span>
+              </p>
+              <div className="space-y-3">
+                <p className="text-xs text-tactical-muted uppercase tracking-widest">Apakah Anda ingin memindahkan personil tersebut ke Gelar Operasi saat ini?</p>
+                <div className="grid grid-cols-2 gap-4 pt-4">
+                  <button 
+                    onClick={() => { setPersonnelToMove(null); setPendingAssignment(null); }}
+                    className="py-3 border border-tactical-border rounded text-xs font-mono text-tactical-text hover:bg-tactical-panel transition-all"
+                  >
+                    BATAL
+                  </button>
+                  <button 
+                    onClick={confirmMove}
+                    className="py-3 bg-tactical-yellow text-black font-bold text-xs font-mono rounded hover:bg-tactical-yellow/80 transition-all uppercase"
+                  >
+                    PINDAHKAN
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

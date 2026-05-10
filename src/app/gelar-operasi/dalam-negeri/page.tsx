@@ -1,4 +1,4 @@
-import DalamNegeriClient from "@/components/operations/DalamNegeriClient";
+import DalamNegeriClient from "../../../components/operations/DalamNegeriClient";
 import { getOpsDalamNegeri } from "@/app/actions";
 
 export default async function DalamNegeriPage() {

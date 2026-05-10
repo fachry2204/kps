@@ -1,8 +1,8 @@
-import LuarNegeriClient from "@/components/operations/LuarNegeriClient";
-import { getOperations } from "@/app/actions";
+import LuarNegeriClient from "../../../components/operations/LuarNegeriClient";
+import { getOpsLuarNegeri } from "@/app/actions";
 
 export default async function LuarNegeriPage() {
-  const operations = await getOperations();
+  const operations = await getOpsLuarNegeri();
   
   return (
     <div className="p-6">

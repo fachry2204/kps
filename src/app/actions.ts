@@ -395,23 +395,33 @@ export async function deletePersonnel(id: number) {
 }
 // 13. Operations Tables (New)
 export async function getOpsDalamNegeri() {
-  const [rows] = await pool.query('SELECT * FROM ops_dalamnegri ORDER BY id DESC');
+  const [rows] = await pool.query(`
+    SELECT o.*, 
+           (SELECT COUNT(*) FROM personnel_ops_assignments WHERE op_id = o.id AND op_type = 'DALAM_NEGERI') as actual_personnel
+    FROM ops_dalamnegri o
+    ORDER BY o.id ASC
+  `);
   return rows as any[];
 }
 
 export async function getOpsLuarNegeri() {
-  const [rows] = await pool.query('SELECT * FROM ops_luarnegri ORDER BY id DESC');
+  const [rows] = await pool.query(`
+    SELECT o.*, 
+           (SELECT COUNT(*) FROM personnel_ops_assignments WHERE op_id = o.id AND op_type = 'LUAR_NEGERI') as actual_personnel
+    FROM ops_luarnegri o
+    ORDER BY o.id ASC
+  `);
   return rows as any[];
 }
 
 export async function addOpDalamNegeri(data: any) {
   try {
     const { name, location, personnel, status, readiness, type } = data;
-    await pool.query(
+    const [result]: any = await pool.query(
       'INSERT INTO ops_dalamnegri (name, location, personnel, status, readiness, type) VALUES (?, ?, ?, ?, ?, ?)',
       [name, location, personnel, status, readiness, type]
     );
-    return { success: true };
+    return { success: true, id: result.insertId };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -420,12 +430,170 @@ export async function addOpDalamNegeri(data: any) {
 export async function addOpLuarNegeri(data: any) {
   try {
     const { name, location, personnel, status, readiness, type } = data;
-    await pool.query(
+    const [result]: any = await pool.query(
       'INSERT INTO ops_luarnegri (name, location, personnel, status, readiness, type) VALUES (?, ?, ?, ?, ?, ?)',
       [name, location, personnel, status, readiness, type]
+    );
+    return { success: true, id: result.insertId };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateOpDalamNegeri(id: number, data: any) {
+  try {
+    const { name, location, personnel, status, readiness, type } = data;
+    await pool.query(
+      'UPDATE ops_dalamnegri SET name = ?, location = ?, personnel = ?, status = ?, readiness = ?, type = ? WHERE id = ?',
+      [name, location, personnel, status, readiness, type, id]
     );
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
+}
+
+export async function deleteOpDalamNegeri(id: number) {
+  try {
+    await pool.query('DELETE FROM ops_dalamnegri WHERE id = ?', [id]);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateOpLuarNegeri(id: number, data: any) {
+  try {
+    const { name, location, personnel, status, readiness, type } = data;
+    await pool.query(
+      'UPDATE ops_luarnegri SET name = ?, location = ?, personnel = ?, status = ?, readiness = ?, type = ? WHERE id = ?',
+      [name, location, personnel, status, readiness, type, id]
+    );
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function deleteOpLuarNegeri(id: number) {
+  try {
+    await pool.query('DELETE FROM ops_luarnegri WHERE id = ?', [id]);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+export async function searchPersonnel(query: string) {
+  const [rows] = await pool.query(
+    'SELECT id, name, rank, specialization, nrp FROM personnel WHERE name LIKE ? OR nrp LIKE ? LIMIT 10',
+    [`%${query}%`, `%${query}%`]
+  );
+  return rows as any[];
+}
+
+export async function getPersonnelAssignment(personnelId: number) {
+  const [rows]: any = await pool.query(`
+    SELECT a.*, 
+           COALESCE(od.name, ol.name) as op_name,
+           COALESCE(od.location, ol.location) as op_location
+    FROM personnel_ops_assignments a
+    LEFT JOIN ops_dalamnegri od ON a.op_type = 'DALAM_NEGERI' AND a.op_id = od.id
+    LEFT JOIN ops_luarnegri ol ON a.op_type = 'LUAR_NEGERI' AND a.op_id = ol.id
+    WHERE a.personnel_id = ?
+  `, [personnelId]);
+  return rows[0] || null;
+}
+
+export async function assignPersonnelToOp(data: {
+  personnelId: number;
+  opType: 'DALAM_NEGERI' | 'LUAR_NEGERI';
+  opId: number;
+  role: string;
+  moveIfAssigned: boolean;
+}) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // Check existing assignment
+    const [existing]: any = await connection.query(
+      'SELECT * FROM personnel_ops_assignments WHERE personnel_id = ?',
+      [data.personnelId]
+    );
+
+    if (existing.length > 0) {
+      if (!data.moveIfAssigned) {
+        await connection.release();
+        return { success: false, isAlreadyAssigned: true };
+      }
+
+      // Move logic: Create history for old assignment
+      const [oldOp]: any = await connection.query(
+        data.opType === 'DALAM_NEGERI' 
+          ? 'SELECT * FROM ops_dalamnegri WHERE id = ?' 
+          : 'SELECT * FROM ops_luarnegri WHERE id = ?',
+        [existing[0].op_id]
+      );
+
+      const [person]: any = await connection.query('SELECT specialization FROM personnel WHERE id = ?', [data.personnelId]);
+
+      const startDate = new Date(existing[0].assigned_at);
+      const endDate = new Date();
+      const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      await connection.query(`
+        INSERT INTO personnel_ops_history 
+        (personnel_id, op_type_text, op_name, op_location, op_role, specialization, start_date, end_date, total_days)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        data.personnelId,
+        existing[0].op_type === 'DALAM_NEGERI' ? 'Dalam Negri' : 'Luar Negri',
+        oldOp[0]?.name || 'Unknown',
+        oldOp[0]?.location || 'Unknown',
+        existing[0].role,
+        person[0]?.specialization || 'N/A',
+        startDate,
+        endDate,
+        diffDays
+      ]);
+
+      // Remove old assignment
+      await connection.query('DELETE FROM personnel_ops_assignments WHERE id = ?', [existing[0].id]);
+    }
+
+    // Create new assignment
+    await connection.query(
+      'INSERT INTO personnel_ops_assignments (personnel_id, op_type, op_id, role) VALUES (?, ?, ?, ?)',
+      [data.personnelId, data.opType, data.opId, data.role]
+    );
+
+    // Update personnel status
+    await connection.query('UPDATE personnel SET status = "ON_MISSION" WHERE id = ?', [data.personnelId]);
+
+    await connection.commit();
+    return { success: true };
+  } catch (error: any) {
+    await connection.rollback();
+    return { success: false, error: error.message };
+  } finally {
+    connection.release();
+  }
+}
+export async function getOpAssignments(opId: number, opType: 'DALAM_NEGERI' | 'LUAR_NEGERI') {
+  const [rows] = await pool.query(`
+    SELECT a.role, p.id, p.name, p.rank, p.nrp, p.specialization, p.photo_url
+    FROM personnel_ops_assignments a
+    JOIN personnel p ON a.personnel_id = p.id
+    WHERE a.op_id = ? AND a.op_type = ?
+  `, [opId, opType]);
+  return rows as any[];
+}
+
+export async function getPersonnelOpsHistory(personnelId: number) {
+  const [rows] = await pool.query(
+    'SELECT * FROM personnel_ops_history WHERE personnel_id = ? ORDER BY end_date DESC',
+    [personnelId]
+  );
+  return rows as any[];
 }
