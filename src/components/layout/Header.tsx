@@ -179,12 +179,8 @@ export function Header() {
           <div className="relative" ref={profileRef}>
             <button 
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center gap-3 pl-2 border-l border-tactical-border hover:bg-tactical-border/30 p-2 rounded transition-colors cursor-pointer text-left"
+              className="flex items-center gap-2 pl-2 border-l border-tactical-border hover:bg-tactical-border/30 p-2 rounded transition-colors cursor-pointer text-left"
             >
-              <div className="flex flex-col items-end">
-                <span className="text-sm font-bold text-tactical-text">Jendral. K</span>
-                <span className="text-xs text-tactical-green font-mono">COMMANDER</span>
-              </div>
               <div className="w-9 h-9 rounded bg-tactical-bg border border-tactical-border flex items-center justify-center group-hover:border-tactical-green transition-colors">
                 <User className="w-5 h-5 text-tactical-muted" />
               </div>
@@ -193,15 +189,21 @@ export function Header() {
 
             {/* Dropdown Menu */}
             {isProfileOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-tactical-bg border border-tactical-border rounded shadow-lg py-1 z-50">
-                <Link 
-                  href="/profile" 
-                  onClick={() => setIsProfileOpen(false)}
-                  className="flex items-center gap-2 px-4 py-2 text-sm text-tactical-text hover:bg-tactical-border hover:text-tactical-green transition-colors"
-                >
-                  <User className="w-4 h-4" />
-                  Lihat Profile
-                </Link>
+              <div className="absolute right-0 mt-2 w-56 bg-tactical-bg border border-tactical-border rounded shadow-lg py-0 z-50 overflow-hidden">
+                <div className="px-4 py-3 bg-tactical-panel border-b border-tactical-border">
+                  <div className="text-sm font-bold text-tactical-text">Jendral. K</div>
+                  <div className="text-[10px] text-tactical-green font-mono uppercase tracking-widest mt-0.5">COMMANDER</div>
+                </div>
+                <div className="py-1">
+                  <Link 
+                    href="/profile" 
+                    onClick={() => setIsProfileOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm text-tactical-text hover:bg-tactical-border hover:text-tactical-green transition-colors"
+                  >
+                    <User className="w-4 h-4" />
+                    Lihat Profile
+                  </Link>
+                </div>
               </div>
             )}
           </div>
