@@ -30,7 +30,7 @@ export default function LoginPage() {
             setAuthSteps(prev => [...prev, "ACCESS GRANTED."]);
             localStorage.setItem("kopasus_auth", "true");
             setTimeout(() => {
-              router.push("/");
+              router.push("/map");
             }, 500);
           }, 800);
         } else {

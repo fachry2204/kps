@@ -23,9 +23,11 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
       router.push("/login");
     }
 
-    // Auto-collapse sidebar on Map page
+    // Auto-collapse sidebar on Map page, expand on others
     if (pathname === '/map') {
       setIsSidebarCollapsed(true);
+    } else {
+      setIsSidebarCollapsed(false);
     }
   }, [isLoginPage, router, pathname]);
 

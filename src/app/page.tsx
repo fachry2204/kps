@@ -9,7 +9,7 @@ export default function Home() {
   useEffect(() => {
     const isAuth = localStorage.getItem("kopasus_auth");
     if (isAuth) {
-      router.replace("/dashboard");
+      router.replace("/map");
     } else {
       router.replace("/login");
     }
