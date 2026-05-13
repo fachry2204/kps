@@ -72,14 +72,21 @@ function MapViewUpdater({ center, zoom, onZoomEnd }: { center: [number, number],
     const centerChanged = currentCenterStr !== lastCenterRef.current;
     const zoomChanged = zoom !== lastZoomRef.current;
     
-    if (centerChanged || zoomChanged) {
+    if (centerChanged) {
+      // If center changed (new target selected), fly to it
       map.flyTo(center, zoom, { 
-        duration: 2.5, // Slightly faster but still smooth for better responsiveness
+        duration: 2.5,
         easeLinearity: 0.25,
-        noMoveStart: true,
         animate: true
       });
       lastCenterRef.current = currentCenterStr;
+      lastZoomRef.current = zoom;
+    } else if (zoomChanged) {
+      // If only zoom changed (manual zoom), stay at current map center
+      map.flyTo(map.getCenter(), zoom, {
+        duration: 0.5,
+        animate: true
+      });
       lastZoomRef.current = zoom;
     }
   }, [center, zoom, map]);
