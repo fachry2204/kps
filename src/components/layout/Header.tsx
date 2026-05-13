@@ -12,9 +12,11 @@ interface HeaderProps {
 }
 
 export function Header({ isSidebarCollapsed }: HeaderProps) {
-  const [time, setTime] = useState(new Date());
+  const [time, setTime] = useState<Date | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [clientInfo, setClientInfo] = useState({ ip: "Loading...", country: "Loading...", browser: "Loading..." });
+  const [isMounted, setIsMounted] = useState(false);
+
   const profileRef = useRef<HTMLDivElement>(null);
   
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -23,6 +25,8 @@ export function Header({ isSidebarCollapsed }: HeaderProps) {
   const CURRENT_USER_ID = 1;
 
   useEffect(() => {
+    setIsMounted(true);
+    setTime(new Date());
     const timer = setInterval(() => setTime(new Date()), 1000);
     
     // Get Browser Info
@@ -126,14 +130,21 @@ export function Header({ isSidebarCollapsed }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-4">
-        <div className="hidden md:flex flex-col items-end">
-          <div className="text-tactical-green font-mono text-sm font-bold">
-            {format(time, "HH:mm:ss")} <span className="text-tactical-muted">WIB</span>
-          </div>
-          <div className="text-tactical-muted text-xs font-mono">
-            {format(time, "dd MMM yyyy")}
-          </div>
+        <div className="hidden md:flex flex-col items-end min-w-[120px]">
+          {isMounted && time ? (
+            <>
+              <div className="text-tactical-green font-mono text-sm font-bold">
+                {format(time, "HH:mm:ss")} <span className="text-tactical-muted">WIB</span>
+              </div>
+              <div className="text-tactical-muted text-xs font-mono">
+                {format(time, "dd MMM yyyy")}
+              </div>
+            </>
+          ) : (
+            <div className="h-10 w-24 bg-tactical-border/20 animate-pulse rounded"></div>
+          )}
         </div>
+
 
         <div className="h-8 w-px bg-tactical-border mx-2"></div>
 
