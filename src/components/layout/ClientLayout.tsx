@@ -30,8 +30,16 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   }, [isLoginPage, router, pathname]);
 
   if (!mounted) {
-    return <div className="min-h-screen bg-tactical-bg" />;
+    return (
+      <div className="min-h-screen bg-tactical-bg flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-tactical-green/20 border-t-tactical-green rounded-full animate-spin" />
+          <p className="text-tactical-green font-mono text-xs animate-pulse tracking-widest">INITIALIZING SECURE UPLINK...</p>
+        </div>
+      </div>
+    );
   }
+
 
   if (isLoginPage) {
     return <main className="min-h-screen bg-tactical-bg">{children}</main>;
