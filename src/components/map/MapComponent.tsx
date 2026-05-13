@@ -72,17 +72,18 @@ function MapViewUpdater({ center, zoom, onZoomEnd }: { center: [number, number],
     const centerChanged = currentCenterStr !== lastCenterRef.current;
     const zoomChanged = zoom !== lastZoomRef.current;
     
+    // IF CENTER PROP CHANGED: Explicitly fly to the new target location (Marker Click)
     if (centerChanged) {
-      // If center changed (new target selected), fly to it
       map.flyTo(center, zoom, { 
-        duration: 2.5,
+        duration: 1.5, // Fast and responsive for direct navigation
         easeLinearity: 0.25,
         animate: true
       });
       lastCenterRef.current = currentCenterStr;
       lastZoomRef.current = zoom;
-    } else if (zoomChanged) {
-      // If only zoom changed (manual zoom), stay at current map center
+    } 
+    // IF ONLY ZOOM CHANGED: Zoom into current view (Slider/Manual Zoom)
+    else if (zoomChanged) {
       map.flyTo(map.getCenter(), zoom, {
         duration: 0.5,
         animate: true
@@ -189,8 +190,6 @@ export default function MapComponent({
           </div>
 
           <MapContainer 
-            center={targetCenter} 
-            zoom={targetZoom} 
             style={{ height: '100%', width: '100%', backgroundColor: '#f8f9fa' }}
             zoomControl={false}
             attributionControl={false}
