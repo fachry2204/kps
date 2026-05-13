@@ -110,8 +110,27 @@ export async function getPersonnelOperationHistory(id: number) {
 
 // 3. Logistics Data
 export async function getLogistics() {
-  const [rows] = await pool.query('SELECT * FROM logistics ORDER BY item_name ASC');
+  const [rows] = await pool.query('SELECT l.*, u.unit_name, u.location as unit_location FROM logistics l LEFT JOIN units u ON l.unit_id = u.id ORDER BY l.item_name ASC');
   return rows as any[];
+}
+
+
+export async function getLogisticsByUnit(unitId: number) {
+  const [rows] = await pool.query('SELECT * FROM logistics WHERE unit_id = ? ORDER BY item_name ASC', [unitId]);
+  return rows as any[];
+}
+
+export async function addLogistics(data: any) {
+  try {
+    const { item_name, category, quantity, unit, min_stock_level, condition_status, unit_id, image_url } = data;
+    const [result]: any = await pool.query(
+      'INSERT INTO logistics (item_name, category, quantity, unit, min_stock_level, condition_status, unit_id, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [item_name, category, quantity, unit, min_stock_level, condition_status, unit_id || null, image_url || null]
+    );
+    return { success: true, id: result.insertId };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
 }
 
 export async function deleteLogistics(id: number) {
@@ -135,11 +154,48 @@ export async function getIntelReports() {
   return rows as any[];
 }
 
+export async function addIntelReport(data: any) {
+  try {
+    const { title, threat_level, content, location_tag, coordinates, is_classified } = data;
+    const [result]: any = await pool.query(
+      'INSERT INTO intel_reports (title, threat_level, content, location_tag, coordinates, is_classified) VALUES (?, ?, ?, ?, ?, ?)',
+      [title, threat_level, content, location_tag, coordinates, is_classified ? 1 : 0]
+    );
+    return { success: true, id: result.insertId };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function deleteIntelReport(id: number) {
+  try {
+    await pool.query('DELETE FROM intel_reports WHERE id = ?', [id]);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateIntelReport(id: number, data: any) {
+  try {
+    const { title, threat_level, content, location_tag, coordinates, is_classified } = data;
+    await pool.query(
+      'UPDATE intel_reports SET title = ?, threat_level = ?, content = ?, location_tag = ?, coordinates = ?, is_classified = ? WHERE id = ?',
+      [title, threat_level, content, location_tag, coordinates, is_classified ? 1 : 0, id]
+    );
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
 // 6. Units Data
 export async function getUnits() {
   const [rows] = await pool.query(`
     SELECT u.*, 
     (SELECT COUNT(*) FROM personnel p WHERE p.unit_id = u.id) as strength,
+    (SELECT COUNT(*) FROM logistics l WHERE l.unit_id = u.id) as logistics_count,
+    (SELECT SUM(quantity) FROM logistics l WHERE l.unit_id = u.id AND l.category = 'Weaponry') as weaponry_count,
     p.name as commander_name,
     p.rank as commander_rank,
     p.nrp as commander_nrp
@@ -195,9 +251,13 @@ interface UpdateUnitData extends AddUnitData {
 
 // 9. Update Unit
 export async function updateUnit(data: UpdateUnitData) {
+  let connection;
   try {
+    connection = await pool.getConnection();
     console.log("Processing updateUnit:", data.id);
     const { id, unit_name, unit_type, location, coordinates, commander_id, members, logoBase64, logoName } = data;
+
+    await connection.beginTransaction();
 
     let logoUrl = null;
     if (logoBase64 && logoName) {
@@ -212,44 +272,41 @@ export async function updateUnit(data: UpdateUnitData) {
     }
 
     if (logoUrl) {
-      await pool.query(
+      await connection.query(
         'UPDATE units SET unit_name = ?, unit_type = ?, logo_url = ?, location = ?, coordinates = ?, commander_id = ? WHERE id = ?',
         [unit_name, unit_type, logoUrl, location, coordinates, commander_id || null, id]
       );
     } else {
-      await pool.query(
+      await connection.query(
         'UPDATE units SET unit_name = ?, unit_type = ?, location = ?, coordinates = ?, commander_id = ? WHERE id = ?',
         [unit_name, unit_type, location, coordinates, commander_id || null, id]
       );
     }
 
-    // Update commander relationship
-    await pool.query('UPDATE personnel SET unit_id = NULL WHERE unit_id = ? AND (rank LIKE "%Mayor%" OR rank LIKE "%Letkol%" OR rank LIKE "%Kolonel%")', [id]);
-    if (commander_id) {
-      await pool.query('UPDATE personnel SET unit_id = ? WHERE id = ?', [id, commander_id]);
-    }
-
-    // Update members relationship
-    // First, clear all members currently in this unit (except the commander if they are also in the list)
-    await pool.query('UPDATE personnel SET unit_id = NULL WHERE unit_id = ?', [id]);
+    // Clear existing assignments for this unit first
+    await connection.query('UPDATE personnel SET unit_id = NULL, unit_role = NULL WHERE unit_id = ?', [id]);
     
-    // Re-assign commander (in case they were cleared)
+    // Assign Commander
     if (commander_id) {
-      await pool.query('UPDATE personnel SET unit_id = ? WHERE id = ?', [id, commander_id]);
+      await connection.query('UPDATE personnel SET unit_id = ?, unit_role = "KOMANDAN" WHERE id = ?', [id, commander_id]);
     }
 
-    // Assign the list of members
-    console.log("members received:", members);
+    // Assign Members
     if (members && members.length > 0) {
       for (const m of members) {
-        await pool.query('UPDATE personnel SET unit_id = ?, unit_role = ? WHERE id = ?', [id, m.role, m.id]);
+        if (commander_id && m.id.toString() === commander_id.toString()) continue;
+        await connection.query('UPDATE personnel SET unit_id = ?, unit_role = ? WHERE id = ?', [id, m.role, m.id]);
       }
     }
     
+    await connection.commit();
     return { success: true };
   } catch (error: any) {
+    if (connection) await connection.rollback();
     console.error("Error in updateUnit:", error);
     return { success: false, error: error.message };
+  } finally {
+    if (connection) connection.release();
   }
 }
 export async function addUnit(data: AddUnitData) {
@@ -307,6 +364,20 @@ export async function addUnit(data: AddUnitData) {
     return { success: true, unitId };
   } catch (error: any) {
     console.error("Error in addUnit:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function addOperationLogistics(operationId: number, operationType: string, logistics: any[]) {
+  try {
+    for (const item of logistics) {
+      await pool.query(
+        'INSERT INTO operation_logistics (operation_id, operation_type, item_name, quantity, unit) VALUES (?, ?, ?, ?, ?)',
+        [operationId, operationType, item.item_name, item.quantity, item.unit || 'pcs']
+      );
+    }
+    return { success: true };
+  } catch (error: any) {
     return { success: false, error: error.message };
   }
 }
@@ -454,10 +525,10 @@ export async function getOpsLuarNegeri() {
 
 export async function addOpDalamNegeri(data: any) {
   try {
-    const { name, location, personnel, status, readiness, type } = data;
+    const { name, location, coordinates, personnel, status, readiness, type, mission_objectives } = data;
     const [result]: any = await pool.query(
-      'INSERT INTO ops_dalamnegri (name, location, personnel, status, readiness, type) VALUES (?, ?, ?, ?, ?, ?)',
-      [name, location, personnel, status, readiness, type]
+      'INSERT INTO ops_dalamnegri (name, location, coordinates, personnel, status, readiness, type, mission_objectives) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, location, coordinates, personnel, status, readiness, type, mission_objectives]
     );
     return { success: true, id: result.insertId };
   } catch (error: any) {
@@ -467,10 +538,10 @@ export async function addOpDalamNegeri(data: any) {
 
 export async function addOpLuarNegeri(data: any) {
   try {
-    const { name, location, personnel, status, readiness, type } = data;
+    const { name, location, coordinates, personnel, status, readiness, type, mission_objectives } = data;
     const [result]: any = await pool.query(
-      'INSERT INTO ops_luarnegri (name, location, personnel, status, readiness, type) VALUES (?, ?, ?, ?, ?, ?)',
-      [name, location, personnel, status, readiness, type]
+      'INSERT INTO ops_luarnegri (name, location, coordinates, personnel, status, readiness, type, mission_objectives) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, location, coordinates, personnel, status, readiness, type, mission_objectives]
     );
     return { success: true, id: result.insertId };
   } catch (error: any) {
@@ -480,10 +551,10 @@ export async function addOpLuarNegeri(data: any) {
 
 export async function updateOpDalamNegeri(id: number, data: any) {
   try {
-    const { name, location, personnel, status, readiness, type } = data;
+    const { name, location, coordinates, personnel, status, readiness, type, mission_objectives } = data;
     await pool.query(
-      'UPDATE ops_dalamnegri SET name = ?, location = ?, personnel = ?, status = ?, readiness = ?, type = ? WHERE id = ?',
-      [name, location, personnel, status, readiness, type, id]
+      'UPDATE ops_dalamnegri SET name = ?, location = ?, coordinates = ?, personnel = ?, status = ?, readiness = ?, type = ?, mission_objectives = ? WHERE id = ?',
+      [name, location, coordinates, personnel, status, readiness, type, mission_objectives, id]
     );
     return { success: true };
   } catch (error: any) {
@@ -502,10 +573,10 @@ export async function deleteOpDalamNegeri(id: number) {
 
 export async function updateOpLuarNegeri(id: number, data: any) {
   try {
-    const { name, location, personnel, status, readiness, type } = data;
+    const { name, location, coordinates, personnel, status, readiness, type, mission_objectives } = data;
     await pool.query(
-      'UPDATE ops_luarnegri SET name = ?, location = ?, personnel = ?, status = ?, readiness = ?, type = ? WHERE id = ?',
-      [name, location, personnel, status, readiness, type, id]
+      'UPDATE ops_luarnegri SET name = ?, location = ?, coordinates = ?, personnel = ?, status = ?, readiness = ?, type = ?, mission_objectives = ? WHERE id = ?',
+      [name, location, coordinates, personnel, status, readiness, type, mission_objectives, id]
     );
     return { success: true };
   } catch (error: any) {
@@ -715,4 +786,7 @@ export async function markNotificationRead(notificationId: number) {
     return { success: false, error: error.message };
   }
 }
+
+// 16. Logistics System
+
 

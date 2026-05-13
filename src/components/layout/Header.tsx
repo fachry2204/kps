@@ -1,12 +1,17 @@
 "use client";
 
 import { Bell, Search, User, Activity, LogOut, Globe, Monitor, MapPin, ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useEffect, useState, useRef } from "react";
 import { format } from "date-fns";
 import Link from "next/link";
 import { getNotifications, markNotificationRead } from "@/app/actions";
 
-export function Header() {
+interface HeaderProps {
+  isSidebarCollapsed: boolean;
+}
+
+export function Header({ isSidebarCollapsed }: HeaderProps) {
   const [time, setTime] = useState(new Date());
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [clientInfo, setClientInfo] = useState({ ip: "Loading...", country: "Loading...", browser: "Loading..." });
@@ -87,7 +92,10 @@ export function Header() {
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
-    <header className="h-16 fixed top-0 right-0 left-64 bg-tactical-panel/90 backdrop-blur border-b border-tactical-border z-30 flex items-center justify-between px-6">
+    <header className={cn(
+      "h-16 fixed top-0 right-0 bg-tactical-panel/90 backdrop-blur border-b border-tactical-border z-30 flex items-center justify-between px-6 transition-all duration-300",
+      isSidebarCollapsed ? "left-20" : "left-64"
+    )}>
       <div className="flex items-center flex-1 gap-6">
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tactical-muted" />

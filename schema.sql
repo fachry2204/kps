@@ -1,4 +1,4 @@
--- PUSKODAL KOPASUS Database Schema
+-- PUSKODAL KOPASSUS Database Schema
 -- Database: kpsdata
 
 CREATE DATABASE IF NOT EXISTS kpsdata;

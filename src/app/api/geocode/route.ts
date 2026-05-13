@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     const response = await fetch(searchUrl, {
       headers: {
         'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
-        'User-Agent': 'PuskodalKopasus/1.0 (contact: admin@puskodal.id)'
+        'User-Agent': 'PuskodalKopassus/1.0 (contact: admin@puskodal.id)'
       }
     });
 

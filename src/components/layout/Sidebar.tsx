@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
 import { 
   LayoutDashboard, 
   Map, 
@@ -15,15 +16,14 @@ import {
   ChevronDown,
   ChevronRight,
   Radio,
-  BarChart3
+  BarChart3,
+  PanelLeftClose,
+  PanelLeftOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Statistik", href: "/statistik", icon: BarChart3 },
-  { name: "Map", href: "/map", icon: Map },
-  { name: "Intelijen", href: "/intel", icon: ShieldAlert },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { 
     name: "Gelar Operasi", 
     href: "/gelar-operasi", 
@@ -33,6 +33,9 @@ const navigation = [
       { name: "Operasi Luar Negeri", href: "/gelar-operasi/luar-negeri" },
     ]
   },
+  { name: "Statistik", href: "/statistik", icon: BarChart3 },
+  { name: "Map", href: "/map", icon: Map },
+  { name: "Intelijen", href: "/intel", icon: ShieldAlert },
   {
     name: "Komunikasi",
     href: "/komunikasi",
@@ -48,11 +51,24 @@ const navigation = [
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  isCollapsed: boolean;
+  onToggle: () => void;
+}
+
+export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+
+  const toggleMenu = (name: string) => {
+    setOpenMenus(prev => ({ ...prev, [name]: !prev[name] }));
+  };
 
   return (
-    <div className="w-64 h-screen fixed top-0 left-0 flex flex-col bg-tactical-panel border-r border-tactical-border z-40">
+    <div className={cn(
+      "h-screen fixed top-0 left-0 flex flex-col bg-tactical-panel border-r border-tactical-border z-40 transition-all duration-300",
+      isCollapsed ? "w-20" : "w-64"
+    )}>
       {/* Camouflage Background Overlay */}
       <div 
         className="absolute inset-0 z-[-1] opacity-100 pointer-events-none"
@@ -63,69 +79,105 @@ export function Sidebar() {
           mixBlendMode: 'overlay'
         }}
       />
-      <div className="p-6 flex items-center gap-3 border-b border-tactical-border">
-        <div className="w-10 h-10 rounded-full bg-tactical-green/10 border border-tactical-green/30 flex items-center justify-center overflow-hidden">
+      <div className={cn(
+        "p-6 flex items-center gap-3 border-b border-tactical-border relative",
+        isCollapsed && "px-4 justify-center"
+      )}>
+        <div className="w-10 h-10 rounded-full bg-tactical-green/10 border border-tactical-green/30 flex items-center justify-center overflow-hidden flex-shrink-0">
           <img src="/logo.png" alt="Kopassus" className="w-8 h-8 object-contain" />
         </div>
-        <div>
-          <h1 className="text-tactical-green font-bold text-lg leading-tight tracking-wider">IDC - SF</h1>
-          <p className="text-tactical-muted text-xs font-mono tracking-widest">KOPASUS</p>
-        </div>
+        {!isCollapsed && (
+          <motion.div 
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="overflow-hidden"
+          >
+            <h1 className="text-tactical-green font-bold text-lg leading-tight tracking-wider whitespace-nowrap">IDC - SF</h1>
+            <p className="text-tactical-muted text-[10px] font-mono tracking-widest whitespace-nowrap uppercase">KOPASSUS</p>
+          </motion.div>
+        )}
+        
+        {/* Toggle Button */}
+        <button 
+          onClick={onToggle}
+          className={cn(
+            "absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-tactical-panel border border-tactical-border rounded-full flex items-center justify-center text-tactical-muted hover:text-tactical-green transition-all z-50",
+            isCollapsed && "right-2 top-2 translate-y-0"
+          )}
+        >
+          {isCollapsed ? <PanelLeftOpen size={12} /> : <PanelLeftClose size={12} />}
+        </button>
       </div>
       
       <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
-        <div className="px-3 mb-2 text-xs font-mono text-tactical-muted uppercase tracking-wider">
-          Main Navigation
-        </div>
+        {!isCollapsed && (
+          <div className="px-3 mb-2 text-[10px] font-mono text-tactical-muted uppercase tracking-wider">
+            Main Navigation
+          </div>
+        )}
         {navigation.map((item) => {
           const isActive = pathname === item.href || (item.subItems && pathname.startsWith(item.href));
           const Icon = item.icon;
           const hasSubItems = item.subItems && item.subItems.length > 0;
-          const [isOpen, setIsOpen] = useState(isActive);
+          const isOpen = openMenus[item.name] || (isActive && openMenus[item.name] === undefined);
 
           return (
             <div key={item.name} className="space-y-1">
               {hasSubItems ? (
                 <button
-                  onClick={() => setIsOpen(!isOpen)}
+                  onClick={() => toggleMenu(item.name)}
                   className={cn(
                     "w-full group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200",
+                    isCollapsed && "justify-center px-2",
                     isActive 
                       ? "bg-tactical-green/10 text-tactical-green border border-tactical-green/30" 
                       : "text-tactical-text hover:bg-tactical-border hover:text-tactical-green"
                   )}
+                  title={isCollapsed ? item.name : ""}
                 >
                   <Icon className={cn(
-                    "mr-3 h-5 w-5 flex-shrink-0 transition-colors",
+                    "h-5 w-5 flex-shrink-0 transition-colors",
+                    !isCollapsed && "mr-3",
                     isActive ? "text-tactical-green" : "text-tactical-muted group-hover:text-tactical-green"
                   )} />
-                  {item.name}
-                  <div className="ml-auto">
-                    {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  </div>
+                  {!isCollapsed && (
+                    <>
+                      <span className="flex-1 text-left">{item.name}</span>
+                      <div className="ml-auto">
+                        {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      </div>
+                    </>
+                  )}
                 </button>
               ) : (
                 <Link
                   href={item.href}
                   className={cn(
                     "group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200",
+                    isCollapsed && "justify-center px-2",
                     isActive 
                       ? "bg-tactical-green/10 text-tactical-green border border-tactical-green/30" 
                       : "text-tactical-text hover:bg-tactical-border hover:text-tactical-green"
                   )}
+                  title={isCollapsed ? item.name : ""}
                 >
                   <Icon className={cn(
-                    "mr-3 h-5 w-5 flex-shrink-0 transition-colors",
+                    "h-5 w-5 flex-shrink-0 transition-colors",
+                    !isCollapsed && "mr-3",
                     isActive ? "text-tactical-green" : "text-tactical-muted group-hover:text-tactical-green"
                   )} />
-                  {item.name}
-                  {isActive && (
-                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-tactical-green shadow-[0_0_8px_rgba(57,255,20,0.8)]" />
+                  {!isCollapsed && (
+                    <>
+                      <span className="flex-1 text-left">{item.name}</span>
+                      {isActive && (
+                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-tactical-green shadow-[0_0_8px_rgba(57,255,20,0.8)]" />
+                      )}
+                    </>
                   )}
                 </Link>
               )}
 
-              {hasSubItems && isOpen && (
+              {hasSubItems && isOpen && !isCollapsed && (
                 <div className="pl-11 space-y-1">
                   {item.subItems.map((sub) => {
                     const isSubActive = pathname === sub.href;
@@ -152,13 +204,19 @@ export function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-tactical-border">
-        <div className="tactical-border p-3 bg-tactical-bg">
-          <div className="text-xs font-mono text-tactical-muted mb-1">SYSTEM STATUS</div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-tactical-green animate-pulse shadow-[0_0_8px_rgba(57,255,20,0.8)]"></div>
-            <span className="text-tactical-green text-xs font-bold tracking-wider">SECURE & ONLINE</span>
+        {isCollapsed ? (
+          <div className="flex justify-center">
+            <div className="w-3 h-3 rounded-full bg-tactical-green animate-pulse shadow-[0_0_8px_rgba(57,255,20,0.8)]"></div>
           </div>
-        </div>
+        ) : (
+          <div className="tactical-border p-3 bg-tactical-bg">
+            <div className="text-[10px] font-mono text-tactical-muted mb-1 uppercase">System Status</div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-tactical-green animate-pulse shadow-[0_0_8px_rgba(57,255,20,0.8)]"></div>
+              <span className="text-tactical-green text-[10px] font-bold tracking-wider uppercase">Secure & Online</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

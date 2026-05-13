@@ -5,6 +5,13 @@ import { Shield, MapPin, Target, ArrowLeft, Loader2, Search, User, X, AlertCircl
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { updateOpDalamNegeri, updateOpLuarNegeri, searchPersonnel, getPersonnelAssignment, assignPersonnelToOp, getOpAssignments } from "@/app/actions";
+import dynamic from "next/dynamic";
+import { Crosshair } from "lucide-react";
+
+const LocationPicker = dynamic(() => import("../units/LocationPicker"), { 
+  ssr: false,
+  loading: () => <div className="h-[300px] bg-tactical-bg flex items-center justify-center text-tactical-green font-mono text-xs uppercase">Connecting to Satellite...</div>
+});
 
 interface EditOperationFormProps {
   id: string;
@@ -18,11 +25,15 @@ export default function EditOperationForm({ id, type, initialData }: EditOperati
   const [formData, setFormData] = useState({
     name: initialData?.operation_name || initialData?.name || "",
     location: initialData?.location || "",
+    coordinates: initialData?.coordinates || "",
     personnel: initialData?.personnel || 0,
     status: initialData?.status || "ACTIVE",
     type: initialData?.type || "",
+    mission_objectives: initialData?.mission_objectives || "",
     readiness: 100
   });
+
+  const [showMap, setShowMap] = useState(false);
 
   // Personnel State
   const [commander, setCommander] = useState<any>(initialData?.commander || null);
@@ -102,9 +113,10 @@ export default function EditOperationForm({ id, type, initialData }: EditOperati
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      const finalForce = (commander ? 1 : 0) + members.length;
       const res = type === "DALAM_NEGERI" 
-        ? await updateOpDalamNegeri(Number(id), formData)
-        : await updateOpLuarNegeri(Number(id), formData);
+        ? await updateOpDalamNegeri(Number(id), {...formData, personnel: finalForce.toString()})
+        : await updateOpLuarNegeri(Number(id), {...formData, personnel: finalForce.toString()});
         
       if (res.success) {
         // Re-assign Commander if changed (In a real app, you'd check if changed, here we just re-run)
@@ -211,6 +223,74 @@ export default function EditOperationForm({ id, type, initialData }: EditOperati
                     <option value="ON_ROTATION">ON ROTATION</option>
                   </select>
                 </div>
+
+                <div className="md:col-span-2 space-y-3">
+                  <label className="text-xs font-mono text-tactical-muted uppercase tracking-widest font-bold">Koordinat GPS / Pin Lokasi</label>
+                  <div className="flex gap-4">
+                    <div className="relative flex-1">
+                      <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-tactical-cyan" />
+                      <input 
+                        required
+                        value={formData.coordinates}
+                        onChange={(e) => setFormData({...formData, coordinates: e.target.value})}
+                        className="w-full bg-tactical-bg/50 border border-tactical-border rounded-lg p-2.5 pl-12 text-sm text-tactical-text focus:border-tactical-cyan outline-none font-mono transition-all"
+                        placeholder="LAT, LONG (e.g. -6.1754, 106.8272)"
+                      />
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => setShowMap(!showMap)}
+                      className="px-6 py-2.5 bg-tactical-cyan/10 border border-tactical-cyan text-tactical-cyan text-[10px] font-bold font-mono rounded flex items-center gap-2 hover:bg-tactical-cyan/20 transition-all uppercase"
+                    >
+                      <Crosshair size={16} />
+                      {showMap ? "Hide Map" : "Open Map"}
+                    </button>
+                  </div>
+
+                  {showMap && (
+                    <div className="pt-4 border-t border-tactical-border mt-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] font-mono text-tactical-muted uppercase">Tactical Grid Overlay</span>
+                        <button 
+                          type="button" 
+                          onClick={() => setShowMap(false)}
+                          className="text-[10px] font-mono text-tactical-red hover:underline uppercase"
+                        >
+                          Close Map Link
+                        </button>
+                      </div>
+                      <div className="rounded-lg overflow-hidden border border-tactical-border h-[350px]">
+                        <LocationPicker 
+                          initialLocation={(() => {
+                            if (formData.coordinates && formData.coordinates.includes(',')) {
+                              const parts = formData.coordinates.split(',').map((p: string) => parseFloat(p.trim()));
+                              if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                                return [parts[0], parts[1]] as [number, number];
+                              }
+                            }
+                            return [-0.7893, 113.9213];
+                          })()} 
+                          onLocationSelected={(lat, lng) => setFormData({...formData, coordinates: `${lat.toFixed(6)}, ${lng.toFixed(6)}`})}
+                          hasLocation={!!formData.coordinates}
+                          zoom={formData.coordinates ? 13 : 5}
+                        />
+                      </div>
+                      <p className="text-[10px] font-mono text-tactical-muted mt-2 uppercase italic text-center">
+                        * Click or drag the pin on the map to lock mission coordinates
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="md:col-span-2 space-y-3">
+                  <label className="text-xs font-mono text-tactical-muted uppercase tracking-widest font-bold">Mission Objectives</label>
+                  <textarea 
+                    required
+                    value={formData.mission_objectives}
+                    onChange={(e) => setFormData({...formData, mission_objectives: e.target.value})}
+                    className="w-full bg-tactical-bg/50 border border-tactical-border rounded-lg p-3 text-sm text-tactical-text focus:border-tactical-green outline-none font-mono transition-all h-32 resize-none"
+                    placeholder="DESCRIBE MISSION OBJECTIVES AND KEY RESULTS..."
+                  />
+                </div>
               </div>
             </form>
           </motion.div>
@@ -258,7 +338,17 @@ export default function EditOperationForm({ id, type, initialData }: EditOperati
         <div className="space-y-8">
           <div className="tactical-glass border-l-4 border-l-tactical-cyan p-6 bg-tactical-cyan/5">
             <h3 className="text-sm font-bold text-tactical-text font-mono mb-4 uppercase">Update Command</h3>
-            <p className="text-xs text-tactical-muted font-mono mb-6 italic">Ensure all personnel assignments are validated before confirming updates.</p>
+            <div className="space-y-4 mb-6">
+              <div className="flex justify-between text-xs font-mono">
+                <span className="text-tactical-muted">Deployment Force</span>
+                <span className="text-tactical-cyan font-bold">{(commander ? 1 : 0) + members.length} Total Personnel</span>
+              </div>
+              <div className="flex justify-between text-xs font-mono">
+                <span className="text-tactical-muted">Status</span>
+                <span className="text-tactical-cyan">{formData.status}</span>
+              </div>
+            </div>
+            <p className="text-xs text-tactical-muted font-mono mb-6 italic border-t border-tactical-cyan/20 pt-4">Ensure all personnel assignments are validated before confirming updates.</p>
             <button 
               form="editForm"
               disabled={isSubmitting}
@@ -275,9 +365,20 @@ export default function EditOperationForm({ id, type, initialData }: EditOperati
       {/* ... Omitting search/move logic here for brevity in this scratch, but I will include it in the final file ... */}
       <AnimatePresence>
         {searchTarget && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSearchTarget(null)} className="absolute inset-0 bg-black/90 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-xl tactical-glass tactical-border p-8">
+          <div className="fixed inset-0 z-[1000] flex items-start justify-center p-4 overflow-y-auto">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => setSearchTarget(null)} 
+              className="fixed inset-0 bg-black/90 backdrop-blur-sm" 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 20 }} 
+              className="relative w-full max-w-xl tactical-glass tactical-border p-8 my-8"
+            >
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-tactical-text uppercase tracking-tighter flex items-center gap-2"><Search className="text-tactical-cyan" /> CARI PERSONIL</h3>
                 <button onClick={() => setSearchTarget(null)} className="text-tactical-muted hover:text-tactical-red"><X size={24} /></button>
@@ -303,9 +404,19 @@ export default function EditOperationForm({ id, type, initialData }: EditOperati
 
       <AnimatePresence>
         {personnelToMove && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/95 backdrop-blur-md" />
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="relative w-full max-w-md tactical-glass border-2 border-tactical-yellow p-8 text-center">
+          <div className="fixed inset-0 z-[1100] flex items-start justify-center p-4 overflow-y-auto">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="fixed inset-0 bg-black/95 backdrop-blur-md" 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.9 }} 
+              className="relative w-full max-w-md tactical-glass border-2 border-tactical-yellow p-8 text-center my-8"
+            >
               <AlertCircle size={48} className="text-tactical-yellow mx-auto mb-4" />
               <h3 className="text-xl font-bold text-tactical-text uppercase mb-2">PINDAHKAN PERSONIL?</h3>
               <p className="text-sm text-tactical-text font-mono mb-6">Personil <span className="text-tactical-yellow font-bold">{personnelToMove.name}</span> sedang di: <br/><span className="text-tactical-cyan uppercase">{personnelToMove.currentOp}</span></p>

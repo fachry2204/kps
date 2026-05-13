@@ -16,11 +16,11 @@ const customIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-function MapController({ center }: { center: [number, number] }) {
+function MapController({ center, zoom }: { center: [number, number], zoom: number }) {
   const map = useMap();
   useEffect(() => {
-    map.flyTo(center, 13);
-  }, [center, map]);
+    map.flyTo(center, zoom);
+  }, [center, zoom, map]);
   return null;
 }
 
@@ -37,9 +37,15 @@ interface LocationPickerProps {
   initialLocation: [number, number];
   onLocationSelected: (lat: number, lng: number) => void;
   hasLocation?: boolean;
+  zoom?: number;
 }
 
-export default function LocationPicker({ initialLocation, onLocationSelected, hasLocation = true }: LocationPickerProps) {
+export default function LocationPicker({ 
+  initialLocation, 
+  onLocationSelected, 
+  hasLocation = true,
+  zoom = 13 
+}: LocationPickerProps) {
   const [mounted, setMounted] = useState(false);
   const markerRef = useRef<L.Marker>(null);
 
@@ -60,36 +66,36 @@ export default function LocationPicker({ initialLocation, onLocationSelected, ha
     [onLocationSelected],
   );
 
-  if (!mounted) return (
-    <div className="w-full h-[300px] bg-tactical-bg flex items-center justify-center text-tactical-green font-mono text-xs">
-      LOADING TACTICAL GRID...
-    </div>
-  );
-
   return (
     <div className="w-full h-[300px] rounded-lg overflow-hidden border border-tactical-border">
-      <MapContainer 
-        center={initialLocation} 
-        zoom={13} 
-        style={{ height: '100%', width: '100%' }}
-        attributionControl={false}
-      >
-        <TileLayer
-          url="https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
-          subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
-        />
-        {hasLocation && (
-          <Marker 
-            draggable={true}
-            eventHandlers={eventHandlers}
-            position={initialLocation} 
-            icon={customIcon}
-            ref={markerRef}
+      {!mounted ? (
+        <div className="w-full h-full bg-tactical-bg flex items-center justify-center text-tactical-green font-mono text-xs">
+          LOADING TACTICAL GRID...
+        </div>
+      ) : (
+        <MapContainer 
+          center={initialLocation} 
+          zoom={zoom} 
+          style={{ height: '100%', width: '100%' }}
+          attributionControl={false}
+        >
+          <TileLayer
+            url="https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+            subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
           />
-        )}
-        <MapEvents onLocationSelected={onLocationSelected} />
-        <MapController center={initialLocation} />
-      </MapContainer>
+          {hasLocation && (
+            <Marker 
+              draggable={true}
+              eventHandlers={eventHandlers}
+              position={initialLocation} 
+              icon={customIcon}
+              ref={markerRef}
+            />
+          )}
+          <MapEvents onLocationSelected={onLocationSelected} />
+          <MapController center={initialLocation} zoom={zoom} />
+        </MapContainer>
+      )}
     </div>
   );
 }

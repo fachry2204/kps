@@ -96,21 +96,21 @@ export default function DashboardClient({ stats }: DashboardClientProps) {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="space-y-6">
         {/* Main Chart */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.6 }}
-          className="lg:col-span-2 tactical-glass tactical-border p-5"
+          className="tactical-glass tactical-border p-5"
         >
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-tactical-text font-bold flex items-center gap-2">
+            <h3 className="text-tactical-text font-bold flex items-center gap-2 uppercase tracking-tight">
               <Activity className="w-5 h-5 text-tactical-cyan" />
               AKTIVITAS OPERASI & ANCAMAN
             </h3>
           </div>
-          <div className="h-[300px] w-full">
+          <div className="h-[350px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={activityData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-tactical-border)" vertical={false} />
@@ -126,23 +126,32 @@ export default function DashboardClient({ stats }: DashboardClientProps) {
           </div>
         </motion.div>
 
-        {/* Side Panel */}
+        {/* Bottom Panel - Distribution */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.7 }}
           className="tactical-glass tactical-border p-5 flex flex-col"
         >
-          <h3 className="text-tactical-text font-bold mb-6 font-mono border-b border-tactical-border pb-2">
-            DISTRIBUSI PERSONIL
+          <h3 className="text-tactical-text font-bold mb-6 font-mono border-b border-tactical-border pb-2 uppercase tracking-tight">
+            DISTRIBUSI PERSONIL PER KESATUAN
           </h3>
-          <div className="flex-1 min-h-[250px]">
+          <div className="h-[400px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={personnelData} layout="vertical">
-                <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" stroke="var(--color-tactical-muted)" fontSize={12} width={70} />
-                <Tooltip cursor={{ fill: 'var(--color-tactical-border)' }} />
-                <Bar dataKey="value" fill="var(--color-tactical-green)" radius={[0, 4, 4, 0]} />
+              <BarChart data={personnelData} layout="horizontal" margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-tactical-border)" vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  stroke="var(--color-tactical-muted)" 
+                  fontSize={10} 
+                  interval={0} 
+                  angle={-45} 
+                  textAnchor="end"
+                  height={80}
+                />
+                <YAxis stroke="var(--color-tactical-muted)" fontSize={12} />
+                <Tooltip cursor={{ fill: 'var(--color-tactical-border)' }} contentStyle={{ backgroundColor: 'var(--color-tactical-panel)', borderColor: 'var(--color-tactical-border)' }} />
+                <Bar dataKey="value" fill="var(--color-tactical-green)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

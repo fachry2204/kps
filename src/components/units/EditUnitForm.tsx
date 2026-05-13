@@ -169,7 +169,7 @@ export default function EditUnitForm({ unit, personnel, existingMembers }: EditU
       }
     } catch (error: any) {
       console.error("Failed to update unit:", error);
-      alert("Terjadi kesalahan sistem.");
+      alert("Terjadi kesalahan sistem: " + (error.message || "Unknown Error"));
     } finally {
       setLoading(false);
     }

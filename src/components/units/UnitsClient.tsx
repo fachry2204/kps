@@ -1,11 +1,11 @@
 "use client";
 
-import { Building2, ChevronRight, Shield, Plus, MapPin, X, Users, Target, Search, Edit, Trash2, ArrowRight } from "lucide-react";
+import { Building2, ChevronRight, Shield, Plus, MapPin, X, Users, Target, Search, Edit, Trash2, ArrowRight, Package, Truck, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { getUnitMembers, deleteUnit } from "@/app/actions";
+import { getUnitMembers, deleteUnit, getLogisticsByUnit, addLogistics, deleteLogistics } from "@/app/actions";
 import { useRouter } from "next/navigation";
 
 const LocationPicker = dynamic(() => import("./LocationPicker"), { 
@@ -39,14 +39,78 @@ export default function UnitsClient({ units }: UnitsClientProps) {
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [memberSearchQuery, setMemberSearchQuery] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<'PERSONNEL' | 'LOGISTICS'>('PERSONNEL');
+  const [unitLogistics, setUnitLogistics] = useState<any[]>([]);
+  const [loadingLogistics, setLoadingLogistics] = useState(false);
+  const [showAddLogistics, setShowAddLogistics] = useState(false);
+  const [newLogistics, setNewLogistics] = useState({
+    item_name: '',
+    category: 'Weaponry',
+    quantity: 0,
+    unit: 'pcs',
+    min_stock_level: 5,
+    condition_status: 'GOOD'
+  });
 
   useEffect(() => {
     if (activeUnitDetail) {
       loadMembers(activeUnitDetail.id);
+      loadLogistics(activeUnitDetail.id);
+      setActiveTab('PERSONNEL');
     } else {
       setMembers([]);
+      setUnitLogistics([]);
     }
   }, [activeUnitDetail]);
+
+  const loadLogistics = async (id: number) => {
+    setLoadingLogistics(true);
+    try {
+      const data = await getLogisticsByUnit(id);
+      setUnitLogistics(data);
+    } catch (error) {
+      console.error("Failed to load logistics:", error);
+    } finally {
+      setLoadingLogistics(false);
+    }
+  };
+
+  const handleAddLogistics = async () => {
+    if (!activeUnitDetail) return;
+    if (!newLogistics.item_name) {
+      alert("Nama barang harus diisi");
+      return;
+    }
+    
+    const res = await addLogistics({
+      ...newLogistics,
+      unit_id: activeUnitDetail.id
+    });
+
+    if (res.success) {
+      loadLogistics(activeUnitDetail.id);
+      setShowAddLogistics(false);
+      setNewLogistics({
+        item_name: '',
+        category: 'Weaponry',
+        quantity: 0,
+        unit: 'pcs',
+        min_stock_level: 5,
+        condition_status: 'GOOD'
+      });
+    } else {
+      alert("Gagal menambahkan logistik: " + res.error);
+    }
+  };
+
+  const handleDeleteLogistics = async (id: number) => {
+    if (confirm("Hapus barang ini dari kesatuan?")) {
+      const res = await deleteLogistics(id);
+      if (res.success && activeUnitDetail) {
+        loadLogistics(activeUnitDetail.id);
+      }
+    }
+  };
 
   const loadMembers = async (id: number) => {
     setLoadingMembers(true);
@@ -320,115 +384,267 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                   </div>
                 </div>
 
-                {/* Personnel List Section */}
+                {/* Main Content Area with Tabs */}
                 <div className="lg:col-span-2 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                      <h3 className="text-sm font-bold text-tactical-text font-mono flex items-center gap-2">
-                        <Users size={16} className="text-tactical-cyan" /> DAFTAR ANGGOTA
-                      </h3>
-                      <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-tactical-muted" />
-                        <input 
-                          type="text"
-                          placeholder="Cari Anggota..."
-                          value={memberSearchQuery}
-                          onChange={(e) => setMemberSearchQuery(e.target.value)}
-                          className="bg-tactical-bg border border-tactical-border rounded pl-8 pr-3 py-1.5 text-[10px] font-mono text-tactical-text focus:outline-none focus:border-tactical-cyan w-48 transition-all"
-                        />
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-mono text-tactical-muted uppercase">ACTIVE DUTY PERSONNEL</span>
+                  <div className="flex border-b border-tactical-border mb-4">
+                    <button 
+                      onClick={() => setActiveTab('PERSONNEL')}
+                      className={`px-6 py-2 font-mono text-xs font-bold transition-all ${activeTab === 'PERSONNEL' ? 'text-tactical-green border-b-2 border-tactical-green bg-tactical-green/5' : 'text-tactical-muted hover:text-tactical-text'}`}
+                    >
+                      <Users size={14} className="inline mr-2" /> PERSONEL
+                    </button>
+                    <button 
+                      onClick={() => setActiveTab('LOGISTICS')}
+                      className={`px-6 py-2 font-mono text-xs font-bold transition-all ${activeTab === 'LOGISTICS' ? 'text-tactical-cyan border-b-2 border-tactical-cyan bg-tactical-cyan/5' : 'text-tactical-muted hover:text-tactical-text'}`}
+                    >
+                      <Package size={14} className="inline mr-2" /> LOGISTIK
+                    </button>
                   </div>
 
-                  <div className="tactical-glass tactical-border overflow-hidden">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-tactical-panel/80 text-[10px] font-mono text-tactical-muted uppercase border-b border-tactical-border">
-                          <th className="px-4 py-3 font-medium">NAMA / NRP</th>
-                          <th className="px-4 py-3 font-medium">PANGKAT</th>
-                          <th className="px-4 py-3 font-medium">JABATAN</th>
-                          <th className="px-4 py-3 font-medium text-right">STATUS</th>
-                        </tr>
-                      </thead>
-                      <tbody className="text-sm">
-                        {loadingMembers ? (
-                          <tr>
-                            <td colSpan={4} className="px-4 py-10 text-center font-mono text-tactical-muted text-xs">
-                              LOADING PERSONNEL DATA...
-                            </td>
-                          </tr>
-                        ) : (() => {
-                          const allMembers = [
-                            ...(activeUnitDetail.commander_name ? [{
-                              id: -1,
-                              name: activeUnitDetail.commander_name,
-                              rank: activeUnitDetail.commander_rank,
-                              nrp: activeUnitDetail.commander_nrp || 'N/A',
-                              unit_role: 'Komandan Kesatuan',
-                              status: 'READY'
-                            }] : []),
-                            ...members
-                          ].filter(m => 
-                            m.name.toLowerCase().includes(memberSearchQuery.toLowerCase()) || 
-                            m.nrp.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
-                            (m.unit_role && m.unit_role.toLowerCase().includes(memberSearchQuery.toLowerCase()))
-                          );
+                  {activeTab === 'PERSONNEL' ? (
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-4">
+                          <h3 className="text-sm font-bold text-tactical-text font-mono flex items-center gap-2">
+                            <Users size={16} className="text-tactical-cyan" /> DAFTAR ANGGOTA
+                          </h3>
+                          <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-tactical-muted" />
+                            <input 
+                              type="text"
+                              placeholder="Cari Anggota..."
+                              value={memberSearchQuery}
+                              onChange={(e) => setMemberSearchQuery(e.target.value)}
+                              className="bg-tactical-bg border border-tactical-border rounded pl-8 pr-3 py-1.5 text-[10px] font-mono text-tactical-text focus:outline-none focus:border-tactical-cyan w-48 transition-all"
+                            />
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-mono text-tactical-muted uppercase">ACTIVE DUTY PERSONNEL</span>
+                      </div>
 
-                          return allMembers.length > 0 ? (
-                            allMembers.map((member) => (
-                              <tr key={member.id} className={`border-b border-tactical-border/30 hover:bg-tactical-green/5 transition-colors ${member.id === -1 ? 'bg-tactical-green/5' : ''}`}>
-                                <td className="px-4 py-3">
-                                  <div className={`font-bold ${member.id === -1 ? 'text-tactical-green' : 'text-tactical-text'}`}>{member.name}</div>
-                                  <div className="text-[10px] font-mono text-tactical-muted">{member.nrp}</div>
-                                </td>
-                                <td className="px-4 py-3 text-tactical-muted font-mono text-xs">{member.rank}</td>
-                                <td className="px-4 py-3">
-                                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
-                                    member.id === -1 ? 'bg-tactical-green/10 text-tactical-green border-tactical-green/30' : 'bg-tactical-panel text-tactical-text border-tactical-border'
-                                  }`}>
-                                    {member.unit_role || 'Anggota'}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
-                                    member.status === 'READY' ? 'bg-tactical-green/10 text-tactical-green border border-tactical-green/30' : 'bg-tactical-muted/10 text-tactical-muted'
-                                  }`}>
-                                    {member.status}
-                                  </span>
+                      <div className="tactical-glass tactical-border overflow-hidden">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-tactical-panel/80 text-[10px] font-mono text-tactical-muted uppercase border-b border-tactical-border">
+                              <th className="px-4 py-3 font-medium">NAMA / NRP</th>
+                              <th className="px-4 py-3 font-medium">PANGKAT</th>
+                              <th className="px-4 py-3 font-medium">JABATAN</th>
+                              <th className="px-4 py-3 font-medium text-right">STATUS</th>
+                            </tr>
+                          </thead>
+                          <tbody className="text-sm">
+                            {loadingMembers ? (
+                              <tr>
+                                <td colSpan={4} className="px-4 py-10 text-center font-mono text-tactical-muted text-xs">
+                                  LOADING PERSONNEL DATA...
                                 </td>
                               </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan={4} className="px-4 py-10 text-center font-mono text-tactical-muted text-xs">
-                                TIDAK ADA ANGGOTA YANG COCOK
-                              </td>
+                            ) : (() => {
+                              const allMembers = [
+                                ...(activeUnitDetail.commander_name ? [{
+                                  id: -1,
+                                  name: activeUnitDetail.commander_name,
+                                  rank: activeUnitDetail.commander_rank,
+                                  nrp: activeUnitDetail.commander_nrp || 'N/A',
+                                  unit_role: 'Komandan Kesatuan',
+                                  status: 'READY'
+                                }] : []),
+                                ...members
+                              ].filter(m => 
+                                m.name.toLowerCase().includes(memberSearchQuery.toLowerCase()) || 
+                                m.nrp.toLowerCase().includes(memberSearchQuery.toLowerCase()) ||
+                                (m.unit_role && m.unit_role.toLowerCase().includes(memberSearchQuery.toLowerCase()))
+                              );
+
+                              return allMembers.length > 0 ? (
+                                allMembers.map((member) => (
+                                  <tr key={member.id} className={`border-b border-tactical-border/30 hover:bg-tactical-green/5 transition-colors ${member.id === -1 ? 'bg-tactical-green/5' : ''}`}>
+                                    <td className="px-4 py-3">
+                                      <div className={`font-bold ${member.id === -1 ? 'text-tactical-green' : 'text-tactical-text'}`}>{member.name}</div>
+                                      <div className="text-[10px] font-mono text-tactical-muted">{member.nrp}</div>
+                                    </td>
+                                    <td className="px-4 py-3 text-tactical-muted font-mono text-xs">{member.rank}</td>
+                                    <td className="px-4 py-3">
+                                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                                        member.id === -1 ? 'bg-tactical-green/10 text-tactical-green border-tactical-green/30' : 'bg-tactical-panel text-tactical-text border-tactical-border'
+                                      }`}>
+                                        {member.unit_role || 'Anggota'}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-right">
+                                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                                        member.status === 'READY' ? 'bg-tactical-green/10 text-tactical-green border border-tactical-green/30' : 'bg-tactical-muted/10 text-tactical-muted'
+                                      }`}>
+                                        {member.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                  <td colSpan={4} className="px-4 py-10 text-center font-mono text-tactical-muted text-xs">
+                                    TIDAK ADA ANGGOTA YANG COCOK
+                                  </td>
+                                </tr>
+                              );
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Logistics Section */
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <h3 className="text-sm font-bold text-tactical-text font-mono flex items-center gap-2">
+                          <Truck size={16} className="text-tactical-cyan" /> INVENTARIS SATUAN
+                        </h3>
+                        <button 
+                          onClick={() => setShowAddLogistics(true)}
+                          className="px-3 py-1.5 bg-tactical-cyan/10 border border-tactical-cyan/30 text-tactical-cyan text-[10px] font-mono rounded hover:bg-tactical-cyan hover:text-tactical-bg transition-all flex items-center gap-2"
+                        >
+                          <Plus size={12} /> TAMBAH LOGISTIK
+                        </button>
+                      </div>
+
+                      {showAddLogistics && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="p-4 tactical-glass border border-tactical-cyan/30 rounded-lg space-y-3"
+                        >
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="col-span-2">
+                              <label className="text-[10px] font-mono text-tactical-muted uppercase">Nama Barang</label>
+                              <input 
+                                type="text" 
+                                value={newLogistics.item_name}
+                                onChange={(e) => setNewLogistics({...newLogistics, item_name: e.target.value})}
+                                className="w-full bg-tactical-bg border border-tactical-border rounded px-3 py-1.5 text-xs text-tactical-text focus:border-tactical-cyan outline-none"
+                                placeholder="Contoh: Senjata SS2-V4"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-mono text-tactical-muted uppercase">Kategori</label>
+                              <select 
+                                value={newLogistics.category}
+                                onChange={(e) => setNewLogistics({...newLogistics, category: e.target.value})}
+                                className="w-full bg-tactical-bg border border-tactical-border rounded px-3 py-1.5 text-xs text-tactical-text focus:border-tactical-cyan outline-none"
+                              >
+                                <option value="Weaponry">Weaponry</option>
+                                <option value="Ammunition">Ammunition</option>
+                                <option value="Vehicles">Vehicles</option>
+                                <option value="Communications">Communications</option>
+                                <option value="Protection">Protection</option>
+                                <option value="Medical">Medical</option>
+                                <option value="Supplies">Supplies</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-mono text-tactical-muted uppercase">Jumlah</label>
+                              <div className="flex gap-2">
+                                <input 
+                                  type="number" 
+                                  value={newLogistics.quantity}
+                                  onChange={(e) => setNewLogistics({...newLogistics, quantity: parseInt(e.target.value)})}
+                                  className="w-full bg-tactical-bg border border-tactical-border rounded px-3 py-1.5 text-xs text-tactical-text focus:border-tactical-cyan outline-none"
+                                />
+                                <input 
+                                  type="text" 
+                                  value={newLogistics.unit}
+                                  onChange={(e) => setNewLogistics({...newLogistics, unit: e.target.value})}
+                                  className="w-20 bg-tactical-bg border border-tactical-border rounded px-3 py-1.5 text-xs text-tactical-text text-center focus:border-tactical-cyan outline-none"
+                                  placeholder="unit"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2 pt-2 border-t border-tactical-border/30">
+                            <button onClick={() => setShowAddLogistics(false)} className="px-3 py-1.5 text-[10px] font-mono text-tactical-muted hover:text-tactical-text">BATAL</button>
+                            <button onClick={handleAddLogistics} className="px-4 py-1.5 bg-tactical-cyan text-tactical-bg text-[10px] font-mono font-bold rounded hover:bg-tactical-cyan/80 transition-colors">SIMPAN LOGISTIK</button>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      <div className="tactical-glass tactical-border overflow-hidden">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-tactical-panel/80 text-[10px] font-mono text-tactical-muted uppercase border-b border-tactical-border">
+                              <th className="px-4 py-3 font-medium">BARANG</th>
+                              <th className="px-4 py-3 font-medium">KATEGORI</th>
+                              <th className="px-4 py-3 font-medium">STOK</th>
+                              <th className="px-4 py-3 font-medium text-right">AKSI</th>
                             </tr>
-                          );
-                        })()}
-                      </tbody>
-                    </table>
-                  </div>
+                          </thead>
+                          <tbody className="text-sm">
+                            {loadingLogistics ? (
+                              <tr>
+                                <td colSpan={4} className="px-4 py-10 text-center font-mono text-tactical-muted text-xs">
+                                  FETCHING LOGISTICS DATA...
+                                </td>
+                              </tr>
+                            ) : unitLogistics.length > 0 ? (
+                              unitLogistics.map((item) => (
+                                <tr key={item.id} className="border-b border-tactical-border/30 hover:bg-tactical-cyan/5 transition-colors">
+                                  <td className="px-4 py-3">
+                                    <div className="font-bold text-tactical-text">{item.item_name}</div>
+                                    <div className="text-[10px] font-mono text-tactical-muted uppercase">ITEM-{item.id}</div>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <span className="text-[10px] font-mono text-tactical-muted uppercase">{item.category}</span>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <div className="font-mono text-xs">
+                                      <span className={item.quantity < item.min_stock_level ? 'text-tactical-red font-bold underline decoration-dotted' : 'text-tactical-text'}>
+                                        {item.quantity}
+                                      </span>
+                                      <span className="text-tactical-muted ml-1">{item.unit}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    <button 
+                                      onClick={() => handleDeleteLogistics(item.id)}
+                                      className="p-1.5 text-tactical-red hover:bg-tactical-red/10 rounded transition-colors"
+                                      title="Remove from Unit"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={4} className="px-4 py-10 text-center font-mono text-tactical-muted text-xs uppercase tracking-widest">
+                                  BELUM ADA DATA LOGISTIK UNTUK SATUAN INI
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Footer */}
               <div className="p-4 border-t border-tactical-border bg-tactical-panel/30 flex justify-between items-center">
-                <div className="flex gap-3">
-                  <button 
-                    onClick={() => router.push(`/kesatuan/edit/${activeUnitDetail.id}`)}
-                    className="px-4 py-2 bg-tactical-cyan/10 border border-tactical-cyan/30 text-tactical-cyan text-xs font-mono rounded flex items-center gap-2 hover:bg-tactical-cyan hover:text-tactical-bg transition-all"
-                  >
-                    <Edit size={14} /> EDIT DATA
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(activeUnitDetail.id)}
-                    className="px-4 py-2 bg-tactical-red/10 border border-tactical-red/30 text-tactical-red text-xs font-mono rounded flex items-center gap-2 hover:bg-tactical-red hover:text-tactical-bg transition-all"
-                  >
-                    <Trash2 size={14} /> DELETE DATA
-                  </button>
-                </div>
+                {activeUnitDetail && (
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={() => router.push(`/kesatuan/edit/${activeUnitDetail.id}`)}
+                      className="px-4 py-2 bg-tactical-cyan/10 border border-tactical-cyan/30 text-tactical-cyan text-xs font-mono rounded flex items-center gap-2 hover:bg-tactical-cyan hover:text-tactical-bg transition-all"
+                    >
+                      <Edit size={14} /> EDIT DATA
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(activeUnitDetail.id)}
+                      className="px-4 py-2 bg-tactical-red/10 border border-tactical-red/30 text-tactical-red text-xs font-mono rounded flex items-center gap-2 hover:bg-tactical-red hover:text-tactical-bg transition-all"
+                    >
+                      <Trash2 size={14} /> DELETE DATA
+                    </button>
+                  </div>
+                )}
                 <button 
                   onClick={() => setActiveUnitDetail(null)}
                   className="px-6 py-2 bg-tactical-border text-tactical-text text-sm font-mono rounded hover:bg-tactical-muted/20 transition-colors"

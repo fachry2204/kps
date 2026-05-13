@@ -1,10 +1,16 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, MapPin, Target, Plus, ArrowLeft, Loader2, Search, User, X, AlertCircle } from "lucide-react";
+import { Shield, MapPin, Target, Plus, ArrowLeft, Loader2, Search, User, X, AlertCircle, Crosshair, Package, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { addOpDalamNegeri, addOpLuarNegeri, searchPersonnel, getPersonnelAssignment, assignPersonnelToOp } from "@/app/actions";
+import { addOpDalamNegeri, addOpLuarNegeri, searchPersonnel, getPersonnelAssignment, assignPersonnelToOp, addOperationLogistics } from "@/app/actions";
+import dynamic from "next/dynamic";
+
+const LocationPicker = dynamic(() => import("../units/LocationPicker"), { 
+  ssr: false,
+  loading: () => <div className="h-[300px] bg-tactical-bg flex items-center justify-center text-tactical-green font-mono text-xs uppercase">Connecting to Satellite...</div>
+});
 
 interface AddOperationFormProps {
   type: "DALAM_NEGERI" | "LUAR_NEGERI";
@@ -16,11 +22,20 @@ export default function AddOperationForm({ type }: AddOperationFormProps) {
   const [formData, setFormData] = useState({
     name: "",
     location: "",
+    coordinates: "",
     personnel: "0",
     status: "ACTIVE",
     readiness: "100",
-    type: ""
+    type: "",
+    mission_objectives: ""
   });
+  
+  const [operationLogistics, setOperationLogistics] = useState<any[]>([
+    { item_name: '', quantity: 1, unit: 'pcs' }
+  ]);
+
+  const [showMap, setShowMap] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
 
   // Personnel State
   const [commander, setCommander] = useState<any>(null);
@@ -98,9 +113,10 @@ export default function AddOperationForm({ type }: AddOperationFormProps) {
 
     setIsSubmitting(true);
     try {
+      const finalForce = (commander ? 1 : 0) + members.length;
       const res = type === "DALAM_NEGERI" 
-        ? await addOpDalamNegeri(formData)
-        : await addOpLuarNegeri(formData);
+        ? await addOpDalamNegeri({...formData, personnel: finalForce.toString()})
+        : await addOpLuarNegeri({...formData, personnel: finalForce.toString()});
         
       if (res.success && res.id) {
         const opId = res.id;
@@ -123,6 +139,12 @@ export default function AddOperationForm({ type }: AddOperationFormProps) {
             role: "ANGGOTA",
             moveIfAssigned: true
           });
+        }
+
+        // Add Logistics
+        const validLogistics = operationLogistics.filter(l => l.item_name.trim() !== '');
+        if (validLogistics.length > 0) {
+          await addOperationLogistics(opId, type, validLogistics);
         }
 
         router.push(type === "DALAM_NEGERI" ? "/gelar-operasi/dalam-negeri" : "/gelar-operasi/luar-negeri");
@@ -209,6 +231,140 @@ export default function AddOperationForm({ type }: AddOperationFormProps) {
                     />
                   </div>
                 </div>
+
+                <div className="md:col-span-2 space-y-3">
+                  <label className="text-xs font-mono text-tactical-muted uppercase tracking-widest font-bold">Koordinat GPS / Pin Lokasi</label>
+                  <div className="flex gap-4">
+                    <div className="relative flex-1">
+                      <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-tactical-cyan" />
+                      <input 
+                        required
+                        value={formData.coordinates}
+                        onChange={(e) => setFormData({...formData, coordinates: e.target.value})}
+                        className="w-full bg-tactical-bg/50 border border-tactical-border rounded-lg p-2.5 pl-12 text-sm text-tactical-text focus:border-tactical-green outline-none font-mono transition-all"
+                        placeholder="LAT, LONG (e.g. -6.1754, 106.8272)"
+                      />
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => setShowMap(!showMap)}
+                      className="px-6 py-2.5 bg-tactical-cyan/10 border border-tactical-cyan text-tactical-cyan text-[10px] font-bold font-mono rounded flex items-center gap-2 hover:bg-tactical-cyan/20 transition-all uppercase"
+                    >
+                      <Crosshair size={16} />
+                      {showMap ? "Hide Map" : "Open Map"}
+                    </button>
+                  </div>
+
+                  {showMap && (
+                    <div className="pt-4 border-t border-tactical-border mt-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] font-mono text-tactical-muted uppercase">Tactical Grid Overlay</span>
+                        <button 
+                          type="button" 
+                          onClick={() => setShowMap(false)}
+                          className="text-[10px] font-mono text-tactical-red hover:underline uppercase"
+                        >
+                          Close Map Link
+                        </button>
+                      </div>
+                      <div className="rounded-lg overflow-hidden border border-tactical-border h-[350px]">
+                        <LocationPicker 
+                          initialLocation={(() => {
+                            if (formData.coordinates && formData.coordinates.includes(',')) {
+                              const parts = formData.coordinates.split(',').map((p: string) => parseFloat(p.trim()));
+                              if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                                return [parts[0], parts[1]] as [number, number];
+                              }
+                            }
+                            return [-0.7893, 113.9213];
+                          })()} 
+                          onLocationSelected={(lat, lng) => setFormData({...formData, coordinates: `${lat.toFixed(6)}, ${lng.toFixed(6)}`})}
+                          hasLocation={!!formData.coordinates}
+                          zoom={formData.coordinates ? 13 : 5}
+                        />
+                      </div>
+                      <p className="text-[10px] font-mono text-tactical-muted mt-2 uppercase italic text-center">
+                        * Click or drag the pin on the map to lock mission coordinates
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="md:col-span-2 space-y-3">
+                  <label className="text-xs font-mono text-tactical-muted uppercase tracking-widest font-bold">Mission Objectives</label>
+                  <textarea 
+                    required
+                    value={formData.mission_objectives}
+                    onChange={(e) => setFormData({...formData, mission_objectives: e.target.value})}
+                    className="w-full bg-tactical-bg/50 border border-tactical-border rounded-lg p-3 text-sm text-tactical-text focus:border-tactical-green outline-none font-mono transition-all h-32 resize-none"
+                    placeholder="DESCRIBE MISSION OBJECTIVES AND KEY RESULTS..."
+                  />
+                </div>
+
+                <div className="md:col-span-2 space-y-4 pt-4 border-t border-tactical-border/30">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-mono text-tactical-muted uppercase tracking-widest font-bold flex items-center gap-2">
+                      <Package className="text-tactical-cyan w-4 h-4" /> LOGISTIK & PERALATAN OPERASI
+                    </label>
+                    <button 
+                      type="button"
+                      onClick={() => setOperationLogistics([...operationLogistics, { item_name: '', quantity: 1, unit: 'pcs' }])}
+                      className="text-[10px] font-mono text-tactical-cyan hover:underline flex items-center gap-1"
+                    >
+                      <Plus size={10} /> TAMBAH BARANG
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {operationLogistics.map((item, index) => (
+                      <div key={index} className="flex gap-4 items-end animate-in fade-in slide-in-from-top-1">
+                        <div className="flex-1 space-y-1">
+                          <input 
+                            value={item.item_name}
+                            onChange={(e) => {
+                              const newLog = [...operationLogistics];
+                              newLog[index].item_name = e.target.value;
+                              setOperationLogistics(newLog);
+                            }}
+                            className="w-full bg-tactical-bg/30 border border-tactical-border rounded p-2 text-xs text-tactical-text focus:border-tactical-cyan outline-none font-mono"
+                            placeholder="Nama Peralatan (contoh: Senjata SS2, Ransum, HT)"
+                          />
+                        </div>
+                        <div className="w-24 space-y-1">
+                          <input 
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const newLog = [...operationLogistics];
+                              newLog[index].quantity = parseInt(e.target.value);
+                              setOperationLogistics(newLog);
+                            }}
+                            className="w-full bg-tactical-bg/30 border border-tactical-border rounded p-2 text-xs text-tactical-text focus:border-tactical-cyan outline-none font-mono text-center"
+                            placeholder="Qty"
+                          />
+                        </div>
+                        <div className="w-20 space-y-1">
+                          <input 
+                            value={item.unit}
+                            onChange={(e) => {
+                              const newLog = [...operationLogistics];
+                              newLog[index].unit = e.target.value;
+                              setOperationLogistics(newLog);
+                            }}
+                            className="w-full bg-tactical-bg/30 border border-tactical-border rounded p-2 text-xs text-tactical-text focus:border-tactical-cyan outline-none font-mono text-center"
+                            placeholder="Unit"
+                          />
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={() => setOperationLogistics(operationLogistics.filter((_, i) => i !== index))}
+                          className="p-2 text-tactical-muted hover:text-tactical-red transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </form>
           </motion.div>
@@ -292,7 +448,7 @@ export default function AddOperationForm({ type }: AddOperationFormProps) {
               </div>
               <div className="flex justify-between text-xs font-mono">
                 <span className="text-tactical-muted">Deployment Force</span>
-                <span className="text-tactical-cyan">{members.length} Members</span>
+                <span className="text-tactical-cyan">{(commander ? 1 : 0) + members.length} Total Personnel</span>
               </div>
             </div>
             <div className="mt-8">
@@ -312,19 +468,19 @@ export default function AddOperationForm({ type }: AddOperationFormProps) {
       {/* Personnel Search Overlay */}
       <AnimatePresence>
         {searchTarget && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[1000] flex items-start justify-center p-4 overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSearchTarget(null)}
-              className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+              className="fixed inset-0 bg-black/90 backdrop-blur-sm"
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-xl tactical-glass tactical-border p-8"
+              className="relative w-full max-w-xl tactical-glass tactical-border p-8 my-8"
             >
               <div className="flex justify-between items-center mb-6">
                 <div>
@@ -390,7 +546,7 @@ export default function AddOperationForm({ type }: AddOperationFormProps) {
       {/* Move Confirmation Modal */}
       <AnimatePresence>
         {personnelToMove && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

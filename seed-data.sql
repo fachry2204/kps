@@ -1,4 +1,4 @@
--- SEED DATA FOR PUSKODAL KOPASUS
+-- SEED DATA FOR PUSKODAL KOPASSUS
 USE kpsdata;
 
 -- Clear existing data

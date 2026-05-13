@@ -14,8 +14,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PUSKODAL KOPASUS - Command Center",
-  description: "Sistem Informasi Komando dan Pengendalian KOPASUS",
+  title: "PUSKODAL KOPASSUS - Command Center",
+  description: "Sistem Informasi Komando dan Pengendalian KOPASSUS",
 };
 
 export default function RootLayout({

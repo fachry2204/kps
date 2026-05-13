@@ -16,6 +16,7 @@ interface LogisticItem {
   min_stock_level: number;
   condition_status: string;
   image_url?: string;
+  unit_name?: string;
 }
 
 interface LogisticsClientProps {
@@ -143,9 +144,10 @@ export default function LogisticsClient({ items }: LogisticsClientProps) {
               <tr className="border-b border-tactical-border text-xs font-mono text-tactical-muted">
                 <th className="py-3 px-4">KODE</th>
                 <th className="py-3 px-4">NAMA BARANG</th>
-                <th className="py-3 px-4">KATEGORI</th>
-                <th className="py-3 px-4">STOK</th>
-                <th className="py-3 px-4">KONDISI</th>
+                <th className="py-3 px-4 text-left">KATEGORI</th>
+                <th className="py-3 px-4 text-left">STOK</th>
+                <th className="py-3 px-4 text-left">UNIT SATUAN</th>
+                <th className="py-3 px-4 text-left">KONDISI</th>
                 <th className="py-3 px-4 text-right">AKSI</th>
               </tr>
             </thead>
@@ -177,6 +179,7 @@ export default function LogisticsClient({ items }: LogisticsClientProps) {
                   </td>
                   <td className="py-3 px-4 text-tactical-muted text-xs">{item.category}</td>
                   <td className="py-3 px-4 font-mono text-xs">{item.quantity} {item.unit}</td>
+                  <td className="py-3 px-4 text-xs font-mono text-tactical-muted">{item.unit_name || 'Gudang Pusat'}</td>
                   <td className="py-3 px-4">
                     <span className={`px-2 py-1 text-[10px] font-bold rounded border ${
                       item.condition_status === 'GOOD' ? 'bg-tactical-green/10 border-tactical-green text-tactical-green' :

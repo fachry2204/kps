@@ -1,9 +1,6 @@
-import { getDashboardStats } from "./actions";
-import DashboardClient from "@/components/dashboard/DashboardClient";
+import { redirect } from "next/navigation";
 
-export default async function Dashboard() {
-  const stats = await getDashboardStats();
-
-  return <DashboardClient stats={stats} />;
+export default function Home() {
+  redirect("/dashboard");
 }
 

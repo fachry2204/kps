@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Shield, MapPin, Users, ArrowRight, Activity, Plus } from "lucide-react";
+import { Shield, MapPin, Users, ArrowRight, Activity, Plus, Crosshair } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -65,6 +65,11 @@ export default function DalamNegeriClient({ initialOperations }: { initialOperat
                   <div className="flex items-center gap-1.5 text-xs font-mono text-tactical-muted mt-1">
                     <MapPin size={12} className="text-tactical-red" /> {satgas.location}
                   </div>
+                  {satgas.coordinates && (
+                    <div className="flex items-center gap-1.5 text-[10px] font-mono text-tactical-cyan mt-0.5">
+                      <Crosshair size={10} className="text-tactical-cyan" /> {satgas.coordinates}
+                    </div>
+                  )}
                 </div>
                 <span className={`text-[10px] font-bold font-mono px-2 py-1 rounded border ${
                   satgas.status === 'ACTIVE' 
