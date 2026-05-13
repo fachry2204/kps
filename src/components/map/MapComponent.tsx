@@ -190,6 +190,8 @@ export default function MapComponent({
           </div>
 
           <MapContainer 
+            center={targetCenter} 
+            zoom={targetZoom} 
             style={{ height: '100%', width: '100%', backgroundColor: '#f8f9fa' }}
             zoomControl={false}
             attributionControl={false}
