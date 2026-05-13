@@ -35,41 +35,60 @@ function decryptMessage(text: string) {
 
 // 1. Dashboard Statistics
 export async function getDashboardStats() {
-  const [personnelCount] = await pool.query('SELECT COUNT(*) as total FROM personnel');
-  const [unitCount] = await pool.query('SELECT COUNT(*) as total FROM units');
-  const [activeOps] = await pool.query('SELECT COUNT(*) as total FROM operations WHERE status = "ONGOING"');
-  const [intelReports] = await pool.query('SELECT COUNT(*) as total FROM intel_reports');
-  const [lowStock] = await pool.query('SELECT COUNT(*) as total FROM logistics WHERE quantity < min_stock_level');
+  try {
+    const [personnelCount] = await pool.query('SELECT COUNT(*) as total FROM personnel');
+    const [unitCount] = await pool.query('SELECT COUNT(*) as total FROM units');
+    const [activeOps] = await pool.query('SELECT COUNT(*) as total FROM operations WHERE status = "ONGOING"');
+    const [intelReports] = await pool.query('SELECT COUNT(*) as total FROM intel_reports');
+    const [lowStock] = await pool.query('SELECT COUNT(*) as total FROM logistics WHERE quantity < min_stock_level');
 
-  // Fetch personnel distribution by unit
-  const [unitDist] = await pool.query(`
-    SELECT u.unit_name as name, COUNT(p.id) as value 
-    FROM units u 
-    LEFT JOIN personnel p ON u.id = p.unit_id 
-    GROUP BY u.id, u.unit_name
-  `);
+    // Fetch personnel distribution by unit
+    const [unitDist] = await pool.query(`
+      SELECT u.unit_name as name, COUNT(p.id) as value 
+      FROM units u 
+      LEFT JOIN personnel p ON u.id = p.unit_id 
+      GROUP BY u.id, u.unit_name
+    `);
 
-  return {
-    personnel: (personnelCount as any)[0].total,
-    units: (unitCount as any)[0].total,
-    operations: (activeOps as any)[0].total,
-    intel: (intelReports as any)[0].total,
-    logisticsAlert: (lowStock as any)[0].total,
-    unitDistribution: unitDist as any[]
-  };
+    return {
+      personnel: (personnelCount as any)[0]?.total || 0,
+      units: (unitCount as any)[0]?.total || 0,
+      operations: (activeOps as any)[0]?.total || 0,
+      intel: (intelReports as any)[0]?.total || 0,
+      logisticsAlert: (lowStock as any)[0]?.total || 0,
+      unitDistribution: (unitDist as any[]) || []
+    };
+  } catch (error) {
+    console.error("Dashboard Stats Error:", error);
+    return {
+      personnel: 0,
+      units: 0,
+      operations: 0,
+      intel: 0,
+      logisticsAlert: 0,
+      unitDistribution: []
+    };
+  }
 }
+
 
 // 2. Personnel Data
 export async function getPersonnel() {
-  const [rows] = await pool.query(`
-    SELECT p.*, u.unit_name,
-    (SELECT u2.unit_name FROM units u2 WHERE u2.commander_id = p.id LIMIT 1) as commanded_unit_name
-    FROM personnel p 
-    LEFT JOIN units u ON p.unit_id = u.id
-    ORDER BY p.id DESC
-  `);
-  return rows as any[];
+  try {
+    const [rows] = await pool.query(`
+      SELECT p.*, u.unit_name,
+      (SELECT u2.unit_name FROM units u2 WHERE u2.commander_id = p.id LIMIT 1) as commanded_unit_name
+      FROM personnel p 
+      LEFT JOIN units u ON p.unit_id = u.id
+      ORDER BY p.id DESC
+    `);
+    return rows as any[];
+  } catch (error) {
+    console.error("Get Personnel Error:", error);
+    return [];
+  }
 }
+
 
 export async function getPersonnelById(id: number) {
   if (isNaN(id)) return null;
@@ -110,9 +129,20 @@ export async function getPersonnelOperationHistory(id: number) {
 
 // 3. Logistics Data
 export async function getLogistics() {
-  const [rows] = await pool.query('SELECT l.*, u.unit_name, u.location as unit_location FROM logistics l LEFT JOIN units u ON l.unit_id = u.id ORDER BY l.item_name ASC');
-  return rows as any[];
+  try {
+    const [rows] = await pool.query(`
+      SELECT l.*, u.unit_name as unit_location, u.coordinates
+      FROM logistics l
+      LEFT JOIN units u ON l.unit_id = u.id
+      ORDER BY l.id DESC
+    `);
+    return rows as any[];
+  } catch (error) {
+    console.error("Get Logistics Error:", error);
+    return [];
+  }
 }
+
 
 
 export async function getLogisticsByUnit(unitId: number) {
