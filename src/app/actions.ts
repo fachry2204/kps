@@ -536,7 +536,9 @@ export async function deletePersonnel(id: number) {
 export async function getOpsDalamNegeri() {
   const [rows] = await pool.query(`
     SELECT o.*, 
-           (SELECT COUNT(*) FROM personnel_ops_assignments WHERE op_id = o.id AND op_type = 'DALAM_NEGERI') as actual_personnel
+           (SELECT COUNT(*) FROM personnel_ops_assignments WHERE op_id = o.id AND op_type = 'DALAM_NEGERI') as actual_personnel,
+           (SELECT p.name FROM personnel_ops_assignments a JOIN personnel p ON a.personnel_id = p.id WHERE a.op_id = o.id AND a.op_type = 'DALAM_NEGERI' AND a.role = 'KOMANDAN' LIMIT 1) as commander_name,
+           (SELECT p.rank FROM personnel_ops_assignments a JOIN personnel p ON a.personnel_id = p.id WHERE a.op_id = o.id AND a.op_type = 'DALAM_NEGERI' AND a.role = 'KOMANDAN' LIMIT 1) as commander_rank
     FROM ops_dalamnegri o
     ORDER BY o.id ASC
   `);
@@ -546,7 +548,9 @@ export async function getOpsDalamNegeri() {
 export async function getOpsLuarNegeri() {
   const [rows] = await pool.query(`
     SELECT o.*, 
-           (SELECT COUNT(*) FROM personnel_ops_assignments WHERE op_id = o.id AND op_type = 'LUAR_NEGERI') as actual_personnel
+           (SELECT COUNT(*) FROM personnel_ops_assignments WHERE op_id = o.id AND op_type = 'LUAR_NEGERI') as actual_personnel,
+           (SELECT p.name FROM personnel_ops_assignments a JOIN personnel p ON a.personnel_id = p.id WHERE a.op_id = o.id AND a.op_type = 'LUAR_NEGERI' AND a.role = 'KOMANDAN' LIMIT 1) as commander_name,
+           (SELECT p.rank FROM personnel_ops_assignments a JOIN personnel p ON a.personnel_id = p.id WHERE a.op_id = o.id AND a.op_type = 'LUAR_NEGERI' AND a.role = 'KOMANDAN' LIMIT 1) as commander_rank
     FROM ops_luarnegri o
     ORDER BY o.id ASC
   `);

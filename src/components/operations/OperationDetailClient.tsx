@@ -137,8 +137,8 @@ export default function OperationDetailClient({ id, initialData }: { id: string,
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-3 space-y-6">
+      <div className="space-y-6">
+        <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="tactical-glass tactical-border p-4 relative overflow-hidden group">
               <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -280,25 +280,6 @@ export default function OperationDetailClient({ id, initialData }: { id: string,
                 </p>
               </div>
             )}
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="tactical-glass border-l-4 border-l-tactical-yellow p-6 bg-tactical-yellow/5">
-            <h3 className="text-sm font-bold text-tactical-yellow font-mono mb-3 flex items-center gap-2 uppercase">
-              <AlertTriangle size={16} /> Intel Summary
-            </h3>
-            <p className="text-xs text-tactical-text leading-relaxed font-mono">{details.intelSummary}</p>
-          </div>
-          <div className="tactical-glass tactical-border p-6">
-            <h3 className="text-sm font-bold text-tactical-text font-mono mb-4 flex items-center gap-2 uppercase">
-              <Activity size={16} className="text-tactical-green" /> System Status
-            </h3>
-            <div className="space-y-4">
-              {[{ label: "Comms Link", status: "STABLE", color: "text-tactical-green" }, { label: "Supply Line", status: "MODERATE", color: "text-tactical-yellow" }].map((item, i) => (
-                <div key={i} className="flex justify-between items-center"><span className="text-[10px] font-mono text-tactical-muted uppercase">{item.label}</span><span className={`text-[9px] font-bold font-mono ${item.color}`}>{item.status}</span></div>
-              ))}
-            </div>
           </div>
         </div>
       </div>

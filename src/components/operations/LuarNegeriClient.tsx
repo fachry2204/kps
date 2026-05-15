@@ -82,12 +82,17 @@ export default function LuarNegeriClient({ initialOperations }: { initialOperati
                 </span>
               </div>
 
-              <div className="mb-6">
+              <div className="grid grid-cols-2 gap-3 mb-6">
                 <div className="p-2 bg-tactical-bg/50 border border-tactical-border rounded">
-                  <div className="text-[9px] font-mono text-tactical-muted mb-1 uppercase text-xs">Personil Bertugas</div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="text-[9px] font-mono text-tactical-muted mb-1 uppercase">Komandan</div>
+                  <div className="text-xs font-bold text-tactical-text truncate">{satgas.commander_name || 'BELUM ADA'}</div>
+                  <div className="text-[8px] font-mono text-tactical-muted uppercase">{satgas.commander_rank || '-'}</div>
+                </div>
+                <div className="p-2 bg-tactical-bg/50 border border-tactical-border rounded">
+                  <div className="text-[9px] font-mono text-tactical-muted mb-1 uppercase text-xs">Personil</div>
+                  <div className="flex items-center gap-1.5 mt-1">
                     <Users size={12} className="text-tactical-cyan" />
-                    <span className="text-xs font-bold text-tactical-text">{satgas.actual_personnel || 0} Personil</span>
+                    <span className="text-xs font-bold text-tactical-text">{satgas.actual_personnel || 0} PX</span>
                   </div>
                 </div>
               </div>

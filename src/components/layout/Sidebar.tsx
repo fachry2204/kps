@@ -13,6 +13,7 @@ import {
   Building2, 
   Package, 
   Settings,
+  Activity,
   ChevronDown,
   ChevronRight,
   Radio,
@@ -23,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const navigation = [
+  { name: "Map", href: "/map", icon: Map },
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { 
     name: "Gelar Operasi", 
@@ -33,9 +35,11 @@ const navigation = [
       { name: "Operasi Luar Negeri", href: "/gelar-operasi/luar-negeri" },
     ]
   },
-  { name: "Statistik", href: "/statistik", icon: BarChart3 },
-  { name: "Map", href: "/map", icon: Map },
+  { name: "Personil Perwira", href: "/personnel", icon: Users },
+  { name: "Logistik", href: "/logistics", icon: Package },
   { name: "Intelijen", href: "/intel", icon: ShieldAlert },
+  { name: "Monitoring Situasi", href: "/monitoring", icon: Activity },
+  { name: "Kesatuan", href: "/kesatuan", icon: Building2 },
   {
     name: "Komunikasi",
     href: "/komunikasi",
@@ -45,9 +49,6 @@ const navigation = [
       { name: "VCON", href: "/komunikasi/vcon" },
     ]
   },
-  { name: "Personil", href: "/personnel", icon: Users },
-  { name: "Kesatuan", href: "/kesatuan", icon: Building2 },
-  { name: "Logistik", href: "/logistics", icon: Package },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -122,7 +123,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           const isOpen = openMenus[item.name] || (isActive && openMenus[item.name] === undefined);
 
           return (
-            <div key={item.name} className="space-y-1">
+            <div key={item.name} className="relative group space-y-1">
               {hasSubItems ? (
                 <button
                   onClick={() => toggleMenu(item.name)}
@@ -196,6 +197,39 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                       </Link>
                     );
                   })}
+                </div>
+              )}
+
+              {/* Floating Tooltip/Submenu for Collapsed Mode */}
+              {isCollapsed && (
+                <div className="absolute left-full top-0 ml-2 w-48 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-200 z-50 pointer-events-none group-hover:pointer-events-auto">
+                  <div className="tactical-glass tactical-border p-2 bg-tactical-panel/95 backdrop-blur-xl shadow-2xl border-l-2 border-l-tactical-green">
+                    <div className="px-3 py-1.5 mb-1 text-[10px] font-bold text-tactical-green font-mono border-b border-tactical-border/50 uppercase tracking-widest flex items-center justify-between">
+                      {item.name}
+                      {hasSubItems && <ChevronRight size={10} />}
+                    </div>
+                    {hasSubItems && (
+                      <div className="space-y-1 mt-1">
+                        {item.subItems.map((sub) => {
+                          const isSubActive = pathname === sub.href;
+                          return (
+                            <Link
+                              key={sub.name}
+                              href={sub.href}
+                              className={cn(
+                                "block px-3 py-2 text-[10px] font-mono rounded transition-all duration-200",
+                                isSubActive
+                                  ? "text-tactical-green bg-tactical-green/10"
+                                  : "text-tactical-muted hover:text-tactical-text hover:bg-tactical-border"
+                              )}
+                            >
+                              {sub.name}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
