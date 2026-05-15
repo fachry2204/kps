@@ -538,17 +538,6 @@ export default function MapComponent({
                 onClick={() => setActiveModal('KEGIATAN')}
               />
 
-              {/* BOTTOM-RIGHT: Navigate / Alamat */}
-              <RadialItem 
-                angle={45} 
-                distance={160} 
-                icon={<MapPin className="w-8 h-8 text-[#c9a041]" />} 
-                label="Alamat" 
-                onClick={() => {
-                  window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedEntity.location)}`, '_blank');
-                }}
-              />
-
               {/* Close Button */}
               <button 
                 onClick={() => setSelectedEntity(null)}
