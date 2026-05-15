@@ -1,13 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Video, Users, PhoneOff, ShieldAlert, Key, Server, Globe } from "lucide-react";
 
 export default function VconClient() {
+  const searchParams = useSearchParams();
+  const unitId = searchParams.get('unitId');
+  
   const [roomName, setRoomName] = useState("Kopassus-CommandCenter-Secure");
   const [isJoined, setIsJoined] = useState(false);
   const [inputRoom, setInputRoom] = useState("");
   const [isPrivateServer, setIsPrivateServer] = useState(false);
+
+  useEffect(() => {
+    if (unitId) {
+      const targetRoom = `KPS-UNIT-${unitId}`;
+      setRoomName(targetRoom);
+      setInputRoom(targetRoom);
+      setIsJoined(true);
+    }
+  }, [unitId]);
 
   // Private server placeholder (will be used when they deploy their own Jitsi instance)
   const serverUrl = isPrivateServer ? "https://vcon.kopassus.local/" : "https://meet.ffmuc.net/";
@@ -71,7 +84,7 @@ export default function VconClient() {
         {!isJoined ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10">
             <div className="w-32 h-32 rounded-full bg-tactical-bg border border-tactical-border flex items-center justify-center mb-6 shadow-2xl relative p-4 bg-gradient-to-b from-tactical-panel to-tactical-bg">
-              <img src="/logo.png" alt="KOPASSUS" className="w-20 h-20 object-contain relative z-10 drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]" />
+              <img src="/logo_puskodal.png" alt="KOPASSUS" className="w-20 h-20 object-contain relative z-10 drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]" />
               <div className="absolute inset-0 rounded-full border border-tactical-green animate-ping opacity-20"></div>
               <div className="absolute inset-[-4px] rounded-full border-2 border-tactical-green/30 border-t-tactical-green animate-spin"></div>
             </div>
@@ -124,7 +137,7 @@ export default function VconClient() {
             
             {/* PHYSICAL OVERLAY TO COVER JITSI LOGO (Top Left) - ENLARGED */}
             <div className="absolute top-0 left-0 w-32 h-16 bg-[#150a0a] z-20 flex items-center justify-center border-b border-r border-tactical-green/30 rounded-br-xl shadow-[5px_5px_15px_rgba(0,0,0,0.5)]">
-              <img src="/logo.png" alt="KPS" className="h-12 w-12 object-contain" />
+              <img src="/logo_puskodal.png" alt="KPS" className="h-12 w-12 object-contain" />
             </div>
             
             {/* Custom Control Overlay - Positioned FURTHER BELOW the enlarged logo mask */}

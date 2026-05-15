@@ -126,7 +126,7 @@ function MapContent() {
           {/* Logo & Info Section */}
           <div className="flex items-center gap-4 relative z-10">
             <div className="relative">
-              <img src="/logo.png" alt="Kopassus" className="w-14 h-14 object-contain drop-shadow-[0_0_6px_rgba(201,160,65,0.3)]" />
+              <img src="/logo_puskodal.png" alt="Kopassus" className="w-14 h-14 object-contain drop-shadow-[0_0_6px_rgba(201,160,65,0.3)]" />
             </div>
             <div className="flex flex-col justify-center">
               <h1 className="text-2xl font-black text-[#facc15] leading-none tracking-tight italic" style={{ textShadow: '0 0 10px rgba(250, 204, 21, 0.6), 2px 2px 2px rgba(0,0,0,1)' }}>IDC-SF</h1>
@@ -318,7 +318,7 @@ function MapContent() {
                     >
                       <td className="px-6 py-3">
                         <img 
-                          src={u.logo_url || "https://upload.wikimedia.org/wikipedia/commons/6/61/Lambang_Kopassus.svg"} 
+                          src={u.logo_url || "/logo_puskodal.png"} 
                           className="w-10 h-10 object-contain drop-shadow-[0_0_5px_rgba(0,255,0,0.5)] group-hover:scale-110 transition-transform" 
                           alt="Logo"
                         />

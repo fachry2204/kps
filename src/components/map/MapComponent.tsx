@@ -44,14 +44,14 @@ const opIcon = new L.DivIcon({
   html: `<div style="position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
             <div style="position: absolute; width: 100%; height: 100%; border-radius: 50%; background: #000; border: 2px solid #ff0000; box-shadow: 0 0 10px rgba(255, 0, 0, 0.8); z-index: 1;"></div>
             <div style="position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 3px solid #ff0000; animation: pulse-high 2s infinite; z-index: 0;"></div>
-            <img src="https://upload.wikimedia.org/wikipedia/commons/6/61/Lambang_Kopassus.svg" style="width: 24px; height: 24px; object-fit: contain; z-index: 2; filter: drop-shadow(0 0 3px rgba(255,0,0,0.5));" />
+            <img src="/logo_puskodal.png" style="width: 24px; height: 24px; object-fit: contain; z-index: 2; filter: drop-shadow(0 0 3px rgba(255,0,0,0.5));" />
          </div>`,
   iconSize: [36, 36],
   iconAnchor: [18, 18]
 });
 
 const createUnitIcon = (logoUrl?: string) => {
-  const actualLogo = logoUrl || "https://upload.wikimedia.org/wikipedia/commons/6/61/Lambang_Kopassus.svg";
+  const actualLogo = logoUrl || "/logo_puskodal.png";
   return new L.DivIcon({
     className: 'custom-unit-icon',
     html: `<div style="width: 40px; height: 40px; border-radius: 50%; overflow: hidden; border: 2px solid var(--color-tactical-green); background-color: var(--color-tactical-bg); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 10px var(--color-tactical-green);">
@@ -486,7 +486,7 @@ export default function MapComponent({
               {/* Central Unit Info */}
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border-4 border-[#c9a041]/50 bg-black/60 flex flex-col items-center justify-center shadow-[0_0_50px_rgba(201,160,65,0.4)] pointer-events-auto backdrop-blur-md z-20">
                  <div className="absolute inset-0 rounded-full border border-[#c9a041]/20 animate-pulse"></div>
-                 <img src={selectedEntity.logo_url || "https://upload.wikimedia.org/wikipedia/commons/6/61/Lambang_Kopassus.svg"} className="w-20 h-20 object-contain drop-shadow-[0_0_10px_rgba(201,160,65,0.5)]" />
+                 <img src={selectedEntity.logo_url || "/logo_puskodal.png"} className="w-20 h-20 object-contain drop-shadow-[0_0_10px_rgba(201,160,65,0.5)]" />
                  <div className="mt-2 text-center">
                     <div className="text-[10px] text-[#c9a041] font-bold tracking-widest">{selectedEntity.unit_code || 'U-03'}</div>
                      <div className="text-base font-black text-white tracking-tight italic uppercase leading-tight px-4">{selectedEntity.unit_name || selectedEntity.name}</div>

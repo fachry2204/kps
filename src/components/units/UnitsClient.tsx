@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, ChevronRight, Shield, Plus, MapPin, X, Users, Target, Search, Edit, Trash2, ArrowRight, Package, Truck, AlertTriangle } from "lucide-react";
+import { Building2, ChevronRight, Shield, Plus, MapPin, X, Users, Target, Search, Edit, Trash2, ArrowRight, Package, Truck, AlertTriangle, MessageSquare, Video } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -188,7 +188,7 @@ export default function UnitsClient({ units }: UnitsClientProps) {
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-tactical-green/10 border border-tactical-green rounded flex items-center justify-center overflow-hidden">
                   <img 
-                    src={unit.logo_url || "https://upload.wikimedia.org/wikipedia/commons/6/61/Lambang_Kopassus.svg"} 
+                    src={unit.logo_url || "/logo_puskodal.png"} 
                     alt={unit.unit_name} 
                     className="w-full h-full object-contain p-1 drop-shadow-[0_0_5px_rgba(0,255,0,0.5)]" 
                   />
@@ -310,7 +310,7 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                 <div className="flex items-center gap-6">
                   <div className="w-20 h-20 bg-tactical-bg border border-tactical-border rounded-lg flex items-center justify-center overflow-hidden">
                     <img 
-                      src={activeUnitDetail.logo_url || "https://upload.wikimedia.org/wikipedia/commons/6/61/Lambang_Kopassus.svg"} 
+                      src={activeUnitDetail.logo_url || "/logo_puskodal.png"} 
                       alt={activeUnitDetail.unit_name} 
                       className="w-full h-full object-contain p-2 drop-shadow-[0_0_5px_rgba(0,255,0,0.5)]" 
                     />
@@ -333,12 +333,27 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                     </div>
                   </div>
                 </div>
-                <button 
-                  onClick={() => setActiveUnitDetail(null)}
-                  className="p-2 hover:bg-tactical-border rounded-full text-tactical-muted hover:text-tactical-red transition-colors"
-                >
-                  <X size={24} />
-                </button>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => router.push(`/komunikasi/chat?unitId=${activeUnitDetail.id}`)}
+                    className="flex items-center gap-2 px-4 py-2 bg-tactical-green/10 border border-tactical-green/30 text-tactical-green text-[11px] font-bold font-mono rounded hover:bg-tactical-green hover:text-black transition-all uppercase tracking-widest"
+                  >
+                    <MessageSquare size={16} /> SECURE CHAT
+                  </button>
+                  <button 
+                    onClick={() => router.push(`/komunikasi/vcon?unitId=${activeUnitDetail.id}`)}
+                    className="flex items-center gap-2 px-4 py-2 bg-tactical-red/10 border border-tactical-red/30 text-tactical-red text-[11px] font-bold font-mono rounded hover:bg-tactical-red hover:text-black transition-all uppercase tracking-widest"
+                  >
+                    <Video size={16} /> SECURE VCON
+                  </button>
+                  <div className="w-[1px] h-8 bg-tactical-border mx-1" />
+                  <button 
+                    onClick={() => setActiveUnitDetail(null)}
+                    className="p-2 hover:bg-tactical-border rounded-full text-tactical-muted hover:text-tactical-red transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6">

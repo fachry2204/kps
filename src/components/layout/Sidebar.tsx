@@ -85,7 +85,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         isCollapsed && "px-4 justify-center"
       )}>
         <div className="w-10 h-10 rounded-full bg-tactical-green/10 border border-tactical-green/30 flex items-center justify-center overflow-hidden flex-shrink-0">
-          <img src="/logo.png" alt="Kopassus" className="w-8 h-8 object-contain" />
+          <img src="/logo_puskodal.png" alt="Kopassus" className="w-8 h-8 object-contain" />
         </div>
         {!isCollapsed && (
           <motion.div 

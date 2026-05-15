@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { Search, MoreVertical, Paperclip, Smile, Send, CheckCheck, User, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getChatContacts, getChatMessages, sendChatMessage } from "@/app/actions";
@@ -8,6 +9,9 @@ import { getChatContacts, getChatMessages, sendChatMessage } from "@/app/actions
 const CURRENT_USER_ID = 1; // Asumsi login sebagai ID 1 (Administrator)
 
 export default function ChatClient() {
+  const searchParams = useSearchParams();
+  const unitId = searchParams.get('unitId');
+  
   const [contacts, setContacts] = useState<any[]>([]);
   const [activeContact, setActiveContact] = useState<number | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -21,13 +25,13 @@ export default function ChatClient() {
   // Poll contacts list
   useEffect(() => {
     const fetchContacts = async () => {
-      const data = await getChatContacts(CURRENT_USER_ID);
+      const data = await getChatContacts(CURRENT_USER_ID, unitId ? parseInt(unitId) : undefined);
       setContacts(data);
     };
     fetchContacts();
     const interval = setInterval(fetchContacts, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [unitId]);
 
   // Poll messages for active contact
   useEffect(() => {

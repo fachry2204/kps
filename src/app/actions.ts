@@ -816,16 +816,26 @@ export async function getPersonnelOpsHistory(personnelId: number) {
 }
 
 // 14. Chat System
-export async function getChatContacts(currentUserId: number) {
-  const [rows] = await pool.query(`
+export async function getChatContacts(currentUserId: number, unitId?: number) {
+  let query = `
     SELECT p.id, p.name, p.rank, p.photo_url,
       (SELECT message_text FROM messages WHERE (sender_id = p.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = p.id) ORDER BY created_at DESC LIMIT 1) as lastMessage,
       (SELECT created_at FROM messages WHERE (sender_id = p.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = p.id) ORDER BY created_at DESC LIMIT 1) as time,
       (SELECT COUNT(*) FROM messages WHERE sender_id = p.id AND receiver_id = ? AND status != 'read') as unread
     FROM personnel p
     WHERE p.id != ?
-    ORDER BY time DESC, p.name ASC
-  `, [currentUserId, currentUserId, currentUserId, currentUserId, currentUserId, currentUserId]);
+  `;
+  
+  const params: any[] = [currentUserId, currentUserId, currentUserId, currentUserId, currentUserId, currentUserId];
+  
+  if (unitId) {
+    query += ` AND p.unit_id = ?`;
+    params.push(unitId);
+  }
+  
+  query += ` ORDER BY time DESC, p.name ASC`;
+
+  const [rows] = await pool.query(query, params);
   
   const contacts = rows as any[];
   contacts.forEach(c => {

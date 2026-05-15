@@ -18,40 +18,45 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    setAuthSteps(["Initiating secure connection..."]);
-
-    // Fake authentication sequence
-    setTimeout(() => {
-      setAuthSteps(prev => [...prev, "Verifying credentials..."]);
-      setTimeout(() => {
-        if (username === "admin") {
-          setAuthSteps(prev => [...prev, "Bypassing biometric firewall..."]);
-          setTimeout(() => {
-            setAuthSteps(prev => [...prev, "ACCESS GRANTED."]);
-            localStorage.setItem("kopasus_auth", "true");
-            setTimeout(() => {
-              router.push("/map");
-            }, 500);
-          }, 800);
-        } else {
-          setLoading(false);
-          setError("ACCESS DENIED. Invalid security clearance.");
-          setAuthSteps([]);
-        }
-      }, 1000);
-    }, 800);
+    setAuthSteps(["Memulai koneksi aman..."]);
+ 
+     // Fake authentication sequence
+     setTimeout(() => {
+       setAuthSteps(prev => [...prev, "Memverifikasi kredensial..."]);
+       setTimeout(() => {
+         if (username === "admin") {
+           setAuthSteps(prev => [...prev, "Melewati firewall biometrik..."]);
+           setTimeout(() => {
+             setAuthSteps(prev => [...prev, "AKSES DIIZINKAN."]);
+             localStorage.setItem("kopasus_auth", "true");
+             setTimeout(() => {
+               router.push("/map");
+             }, 500);
+           }, 800);
+         } else {
+           setLoading(false);
+           setError("AKSES DITOLAK. Izin keamanan tidak valid.");
+           setAuthSteps([]);
+         }
+       }, 1000);
+     }, 800);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-black">
-      {/* Background with Image & Overlays */}
-      <div className="absolute inset-0 z-0">
-        <img 
-          src="/images/bgkopasus.jpg" 
-          alt="Login Background" 
-          className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-luminosity"
-        />
-        <div className="absolute inset-0 bg-gradient-to-br from-black via-black/80 to-tactical-bg/40" />
+    <div className="min-h-screen flex items-center justify-end pr-8 md:pr-24 lg:pr-32 relative overflow-hidden bg-black">
+      {/* Background with Video & Overlays */}
+      <div className="absolute inset-0 z-0 overflow-hidden">
+        <div className="absolute inset-0 w-full h-full scale-[1.3] pointer-events-none">
+          <iframe 
+            src="https://www.youtube.com/embed/UwaFC4WNRRA?autoplay=1&mute=1&loop=1&playlist=UwaFC4WNRRA&controls=0&showinfo=0&modestbranding=1&iv_load_policy=3&rel=0"
+            className="w-full h-full border-none"
+            allow="autoplay; encrypted-media"
+            title="Background Video"
+          />
+        </div>
+        <div className="absolute inset-0 bg-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-l from-black/80 via-black/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/40" />
         
         {/* Diagonal Lines Overlay */}
         <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,rgba(0,0,0,0)_0,rgba(0,0,0,0)_5px,rgba(0,0,0,0.3)_5px,rgba(0,0,0,0.3)_6px)] pointer-events-none" />
@@ -67,20 +72,20 @@ export default function LoginPage() {
       <div className="absolute bottom-0 right-0 w-32 h-32 border-r-2 border-b-2 border-tactical-green/30 m-8" />
 
       <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
+        initial={{ opacity: 0, x: 50 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
         className="z-20 w-full max-w-md"
       >
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-32 h-32 rounded-full mb-4 relative drop-shadow-[0_0_30px_rgba(204,0,0,0.5)]">
-            <img src="/logo.png" alt="Kopassus Logo" className="w-full h-full object-contain" />
+            <img src="/logo_puskodal.png" alt="Kopassus Logo" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-[17px] font-bold text-tactical-text tracking-widest uppercase">INTEGRATED DATA CENTER - SPECIAL FORCE</h1>
           <p className="text-tactical-green font-mono text-sm tracking-[0.3em] mt-2">(IDC - SF)</p>
           <div className="flex items-center justify-center gap-2 mt-4 text-xs font-mono text-tactical-muted">
             <Lock className="w-3 h-3" />
-            <span>ENCRYPTED SECURE LINK</span>
+            <span>LINK AMAN TERENKRIPSI</span>
           </div>
         </div>
 
@@ -104,7 +109,7 @@ export default function LoginPage() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     className="block w-full pl-10 pr-3 py-3 border border-tactical-border bg-tactical-bg/50 rounded-md text-tactical-text placeholder-tactical-muted focus:outline-none focus:ring-1 focus:ring-tactical-green focus:border-tactical-green font-mono text-sm transition-all"
-                    placeholder="OPERATIVE ID (e.g. admin)"
+                    placeholder="ID OPERATIF (misal: admin)"
                     required
                   />
                 </div>
@@ -118,7 +123,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="block w-full pl-10 pr-3 py-3 border border-tactical-border bg-tactical-bg/50 rounded-md text-tactical-text placeholder-tactical-muted focus:outline-none focus:ring-1 focus:ring-tactical-green focus:border-tactical-green font-mono text-sm transition-all"
-                    placeholder="CLEARANCE CODE"
+                    placeholder="KODE AKSES"
                     required
                   />
                 </div>
@@ -127,7 +132,7 @@ export default function LoginPage() {
               <div className="flex items-center justify-between text-xs font-mono text-tactical-muted pt-2 border-t border-tactical-border/50">
                 <label className="flex items-center gap-2 cursor-pointer hover:text-tactical-text transition-colors">
                   <input type="checkbox" className="accent-tactical-green" />
-                  <span>BIOMETRIC OVERRIDE</span>
+                  <span>Tetap Login di Sini</span>
                 </label>
                 <Fingerprint className="w-4 h-4 text-tactical-green/50" />
               </div>
@@ -136,7 +141,7 @@ export default function LoginPage() {
                 type="submit"
                 className="w-full flex items-center justify-center py-3 px-4 border border-tactical-green bg-tactical-green/20 text-tactical-green font-bold font-mono tracking-widest hover:bg-tactical-green hover:text-black transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-tactical-green focus:ring-offset-tactical-bg group"
               >
-                INITIALIZE UPLINK
+                MASUK SISTEM
                 <div className="ml-3 w-2 h-2 rounded-full bg-tactical-green group-hover:bg-black group-hover:animate-ping" />
               </button>
             </form>
@@ -151,13 +156,13 @@ export default function LoginPage() {
                     animate={{ opacity: 1, x: 0 }}
                     className={cn(
                       "flex items-center gap-2",
-                      step === "ACCESS GRANTED." ? "text-tactical-green font-bold text-sm" : "text-tactical-muted"
+                      step === "AKSES DIIZINKAN." ? "text-tactical-green font-bold text-sm" : "text-tactical-muted"
                     )}
                   >
                     <span className="text-tactical-green">&gt;</span> {step}
                   </motion.div>
                 ))}
-                {authSteps[authSteps.length - 1] !== "ACCESS GRANTED." && (
+                {authSteps[authSteps.length - 1] !== "AKSES DIIZINKAN." && (
                   <div className="flex items-center gap-2 text-tactical-muted animate-pulse">
                     <span className="text-tactical-green">&gt;</span> _
                   </div>
@@ -167,9 +172,9 @@ export default function LoginPage() {
           )}
         </div>
         
-        <div className="text-center mt-8 text-[10px] font-mono text-tactical-muted/50 tracking-widest">
-          UNAUTHORIZED ACCESS IS STRICTLY PROHIBITED. <br/>
-          ALL ACTIVITY IS LOGGED AND MONITORED.
+        <div className="text-center mt-8 text-[10px] font-mono text-tactical-muted/50 tracking-widest uppercase">
+          AKSES TIDAK SAH SANGAT DILARANG. <br/>
+          SEMUA AKTIVITAS DICATAT DAN DIPANTAU.
         </div>
       </motion.div>
     </div>
