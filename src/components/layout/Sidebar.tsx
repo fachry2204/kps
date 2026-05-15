@@ -134,7 +134,6 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                       ? "bg-tactical-green/10 text-tactical-green border border-tactical-green/30" 
                       : "text-tactical-text hover:bg-tactical-border hover:text-tactical-green"
                   )}
-                  title={isCollapsed ? item.name : ""}
                 >
                   <Icon className={cn(
                     "h-5 w-5 flex-shrink-0 transition-colors",
@@ -160,7 +159,6 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                       ? "bg-tactical-green/10 text-tactical-green border border-tactical-green/30" 
                       : "text-tactical-text hover:bg-tactical-border hover:text-tactical-green"
                   )}
-                  title={isCollapsed ? item.name : ""}
                 >
                   <Icon className={cn(
                     "h-5 w-5 flex-shrink-0 transition-colors",

@@ -341,13 +341,13 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {/* Profile Section */}
-                <div className="lg:col-span-1 space-y-6">
+                <div className="space-y-6">
                   <div className="tactical-glass tactical-border p-4 space-y-4">
                     <h3 className="text-sm font-bold text-tactical-text font-mono border-b border-tactical-border pb-2">PROFIL SATUAN</h3>
                     
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div>
                         <div className="text-[10px] font-mono text-tactical-muted">KOMANDAN</div>
                         <div className="text-sm font-bold text-tactical-green">{activeUnitDetail.commander_name || 'BELUM DITENTUKAN'}</div>
@@ -369,23 +369,10 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                     </div>
                   </div>
 
-                  <div className="tactical-glass tactical-border p-4">
-                    <h3 className="text-sm font-bold text-tactical-text font-mono border-b border-tactical-border pb-2 mb-4 flex items-center gap-2">
-                      <Target size={16} className="text-tactical-red" /> CAPABILITIES
-                    </h3>
-                    <div className="space-y-2">
-                      {['Strategic Operations', 'Counter Terrorism', 'Unconventional Warfare', 'Direct Action'].map(cap => (
-                        <div key={cap} className="flex items-center justify-between text-[11px] font-mono">
-                          <span className="text-tactical-muted">{cap}</span>
-                          <span className="text-tactical-green">A+</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                 </div>
 
                 {/* Main Content Area with Tabs */}
-                <div className="lg:col-span-2 space-y-4">
+                <div className="space-y-4">
                   <div className="flex border-b border-tactical-border mb-4">
                     <button 
                       onClick={() => setActiveTab('PERSONNEL')}

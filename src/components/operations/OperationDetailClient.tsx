@@ -168,7 +168,7 @@ export default function OperationDetailClient({ id, initialData }: { id: string,
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6">
             <div className="tactical-glass tactical-border p-6">
               <h3 className="text-sm font-bold text-tactical-text font-mono border-b border-tactical-border pb-3 mb-4 flex items-center gap-2 uppercase">
                 <Shield size={16} className="text-tactical-yellow" /> Komandan Bertugas

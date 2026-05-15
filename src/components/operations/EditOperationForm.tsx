@@ -295,7 +295,7 @@ export default function EditOperationForm({ id, type, initialData }: EditOperati
             </form>
           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 gap-8">
             <div className="tactical-glass tactical-border p-6 space-y-4">
               <h3 className="text-sm font-bold text-tactical-text font-mono uppercase tracking-widest border-b border-tactical-border pb-2 flex justify-between items-center">
                 Komandan Operasi

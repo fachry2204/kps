@@ -210,7 +210,7 @@ export function Header({ isSidebarCollapsed }: HeaderProps) {
             {isProfileOpen && (
               <div className="absolute right-0 mt-2 w-56 bg-tactical-bg border border-tactical-border rounded shadow-lg py-0 z-50 overflow-hidden">
                 <div className="px-4 py-3 bg-tactical-panel border-b border-tactical-border">
-                  <div className="text-sm font-bold text-tactical-text">Jendral. K</div>
+                  <div className="text-sm font-bold text-tactical-text">Administrator</div>
                   <div className="text-[10px] text-tactical-green font-mono uppercase tracking-widest mt-0.5">COMMANDER</div>
                 </div>
                 <div className="py-1">

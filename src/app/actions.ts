@@ -77,9 +77,15 @@ export async function getPersonnel() {
   try {
     const [rows] = await pool.query(`
       SELECT p.*, u.unit_name,
+      COALESCE(odn.name, oln.name) as current_op_name,
+      poa.op_id as current_op_id,
+      poa.op_type as current_op_type,
       (SELECT u2.unit_name FROM units u2 WHERE u2.commander_id = p.id LIMIT 1) as commanded_unit_name
       FROM personnel p 
       LEFT JOIN units u ON p.unit_id = u.id
+      LEFT JOIN personnel_ops_assignments poa ON p.id = poa.personnel_id
+      LEFT JOIN ops_dalamnegri odn ON poa.op_id = odn.id AND poa.op_type = 'DALAM_NEGERI'
+      LEFT JOIN ops_luarnegri oln ON poa.op_id = oln.id AND poa.op_type = 'LUAR_NEGERI'
       ORDER BY p.id DESC
     `);
     return rows as any[];
@@ -91,28 +97,38 @@ export async function getPersonnel() {
 
 
 export async function getPersonnelById(id: number) {
-  if (isNaN(id)) return null;
-  const [rows] = await pool.query(`
-    SELECT p.*, u.unit_name 
-    FROM personnel p 
-    LEFT JOIN units u ON p.unit_id = u.id
-    WHERE p.id = ?
-    LIMIT 1
-  `, [id]);
-  const personnel = rows as any[];
-  return personnel.length > 0 ? personnel[0] : null;
+  try {
+    if (isNaN(id)) return null;
+    const [rows] = await pool.query(`
+      SELECT p.*, u.unit_name 
+      FROM personnel p 
+      LEFT JOIN units u ON p.unit_id = u.id
+      WHERE p.id = ?
+      LIMIT 1
+    `, [id]);
+    const personnel = rows as any[];
+    return personnel.length > 0 ? personnel[0] : null;
+  } catch (error) {
+    console.error("Get Personnel By ID Error:", error);
+    return null;
+  }
 }
 
 export async function getPersonnelUnitHistory(id: number) {
-  if (isNaN(id)) return [];
-  const [rows] = await pool.query(`
-    SELECT h.*, u.unit_name, u.unit_type
-    FROM personnel_unit_history h
-    JOIN units u ON h.unit_id = u.id
-    WHERE h.personnel_id = ?
-    ORDER BY h.start_date DESC
-  `, [id]);
-  return rows as any[];
+  try {
+    if (isNaN(id)) return [];
+    const [rows] = await pool.query(`
+      SELECT h.*, u.unit_name, u.unit_type
+      FROM personnel_unit_history h
+      JOIN units u ON h.unit_id = u.id
+      WHERE h.personnel_id = ?
+      ORDER BY h.start_date DESC
+    `, [id]);
+    return rows as any[];
+  } catch (error) {
+    console.error("Get Personnel Unit History Error:", error);
+    return [];
+  }
 }
 
 export async function getPersonnelOperationHistory(id: number) {
@@ -127,7 +143,60 @@ export async function getPersonnelOperationHistory(id: number) {
   return rows as any[];
 }
 
-// 3. Logistics Data
+// 3. Extended Personnel Actions
+export async function getPersonnelEducation(id: number) {
+  try {
+    const [rows] = await pool.query('SELECT * FROM personnel_education WHERE personnel_id = ? ORDER BY year DESC', [id]);
+    return rows as any[];
+  } catch (error) { return []; }
+}
+
+export async function getPersonnelMilEducation(id: number) {
+  try {
+    const [rows] = await pool.query('SELECT * FROM personnel_mil_education WHERE personnel_id = ? ORDER BY year DESC', [id]);
+    return rows as any[];
+  } catch (error) { return []; }
+}
+
+export async function getPersonnelAwards(id: number) {
+  try {
+    const [rows] = await pool.query('SELECT * FROM personnel_awards WHERE personnel_id = ? ORDER BY year DESC', [id]);
+    return rows as any[];
+  } catch (error) { return []; }
+}
+
+export async function getPersonnelLanguages(id: number) {
+  try {
+    const [rows] = await pool.query('SELECT * FROM personnel_languages WHERE personnel_id = ?', [id]);
+    return rows as any[];
+  } catch (error) { return []; }
+}
+
+export async function getPersonnelAssignments(id: number) {
+  try {
+    const [rows] = await pool.query('SELECT * FROM personnel_assignments WHERE personnel_id = ? ORDER BY year DESC', [id]);
+    return rows as any[];
+  } catch (error) { return []; }
+}
+
+// 4. Filter Options
+export async function getFilterOptions() {
+  try {
+    const [units] = await pool.query('SELECT id, unit_name as name FROM units ORDER BY unit_name ASC');
+    const [opsDN] = await pool.query('SELECT id, name, "DALAM_NEGERI" as type FROM ops_dalamnegri ORDER BY name ASC');
+    const [opsLN] = await pool.query('SELECT id, name, "LUAR_NEGERI" as type FROM ops_luarnegri ORDER BY name ASC');
+    
+    return {
+      units: units as any[],
+      operations: [...(opsDN as any[]), ...(opsLN as any[])]
+    };
+  } catch (error) {
+    console.error("Get Filter Options Error:", error);
+    return { units: [], operations: [] };
+  }
+}
+
+// 4. Logistics Data
 export async function getLogistics() {
   try {
     const [rows] = await pool.query(`
@@ -250,14 +319,19 @@ export async function getUnitById(id: number) {
 }
 
 export async function getUnitMembers(unitId: number) {
-  const [rows] = await pool.query(`
-    SELECT p.id, p.name, p.rank, p.nrp, p.specialization, p.status, p.unit_role
-    FROM personnel p
-    LEFT JOIN units u ON u.id = ?
-    WHERE p.unit_id = ? AND (u.commander_id IS NULL OR p.id != u.commander_id)
-    ORDER BY FIELD(p.rank, 'Kolonel', 'Letkol', 'Mayor', 'Kapten', 'Lettu', 'Letda', 'Peltu', 'Pelda', 'Serma', 'Serka', 'Sertu', 'Serda', 'Kopda', 'Koptu', 'Praka', 'Pratu', 'Prada') ASC, p.name ASC
-  `, [unitId, unitId]);
-  return rows as any[];
+  try {
+    const [rows] = await pool.query(`
+      SELECT p.id, p.name, p.rank, p.nrp, p.specialization, p.status, p.unit_role
+      FROM personnel p
+      LEFT JOIN units u ON u.id = ?
+      WHERE p.unit_id = ? AND (u.commander_id IS NULL OR p.id != u.commander_id)
+      ORDER BY FIELD(p.rank, 'Kolonel', 'Letkol', 'Mayor', 'Kapten', 'Lettu', 'Letda', 'Peltu', 'Pelda', 'Serma', 'Serka', 'Sertu', 'Serda', 'Kopda', 'Koptu', 'Praka', 'Pratu', 'Prada') ASC, p.name ASC
+    `, [unitId, unitId]);
+    return rows as any[];
+  } catch (error) {
+    console.error("Get Unit Members Error:", error);
+    return [];
+  }
 }
 
 

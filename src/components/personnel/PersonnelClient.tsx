@@ -1,6 +1,6 @@
 "use client";
 
-import { Users, Search, Filter, Download, UserPlus, ChevronLeft, ChevronRight } from "lucide-react";
+import { Users, Search, Filter, Download, UserPlus, ChevronLeft, ChevronRight, ChevronDown, MessageSquare, Video } from "lucide-react";
 import Link from "next/link";
 import { useState, useMemo } from "react";
 
@@ -9,28 +9,43 @@ interface Person {
   nrp: string;
   name: string;
   rank: string;
+  unit_id: number;
   unit_name: string;
   specialization: string;
   status: string;
   photo_url?: string;
+  current_op_name?: string;
+  current_op_id?: number;
 }
 
 interface PersonnelClientProps {
   personnel: Person[];
+  units: { id: number, name: string }[];
+  operations: { id: number, name: string, type: string }[];
 }
 
-export default function PersonnelClient({ personnel }: PersonnelClientProps) {
+export default function PersonnelClient({ personnel, units, operations }: PersonnelClientProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedUnit, setSelectedUnit] = useState<string>("ALL");
+  const [selectedOp, setSelectedOp] = useState<string>("ALL");
+  const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 24;
 
   const filteredPersonnel = useMemo(() => {
-    return personnel.filter(p => 
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.nrp.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.rank.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [personnel, searchQuery]);
+    return personnel.filter(p => {
+      const matchesSearch = 
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.nrp.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.rank.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesUnit = selectedUnit === "ALL" || p.unit_id === parseInt(selectedUnit);
+      const matchesOp = selectedOp === "ALL" || p.current_op_name === selectedOp;
+      const matchesStatus = selectedStatus === "ALL" || p.status === selectedStatus;
+
+      return matchesSearch && matchesUnit && matchesOp && matchesStatus;
+    });
+  }, [personnel, searchQuery, selectedUnit, selectedOp, selectedStatus]);
 
   const totalPages = Math.ceil(filteredPersonnel.length / itemsPerPage);
   
@@ -69,7 +84,7 @@ export default function PersonnelClient({ personnel }: PersonnelClientProps) {
       </div>
 
       <div className="tactical-glass tactical-border p-4">
-        <div className="flex gap-4">
+        <div className="flex flex-col md:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tactical-muted" />
             <input 
@@ -83,51 +98,125 @@ export default function PersonnelClient({ personnel }: PersonnelClientProps) {
               className="w-full bg-tactical-bg border border-tactical-border rounded pl-10 pr-4 py-2 text-sm text-tactical-text focus:outline-none focus:border-tactical-green"
             />
           </div>
-          <button className="px-4 py-2 flex items-center gap-2 text-sm bg-tactical-bg border border-tactical-border rounded text-tactical-muted hover:text-tactical-text">
-            <Filter className="w-4 h-4" /> Filter
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <div className="relative">
+              <select 
+                value={selectedUnit}
+                onChange={(e) => {
+                  setSelectedUnit(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="appearance-none bg-tactical-bg border border-tactical-border rounded pl-4 pr-10 py-2 text-sm text-tactical-text focus:outline-none focus:border-tactical-green min-w-[140px]"
+              >
+                <option value="ALL">KESATUAN: SEMUA</option>
+                {units.map(u => (
+                  <option key={u.id} value={u.id}>{u.name.toUpperCase()}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tactical-muted pointer-events-none" />
+            </div>
+
+            <div className="relative">
+              <select 
+                value={selectedOp}
+                onChange={(e) => {
+                  setSelectedOp(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="appearance-none bg-tactical-bg border border-tactical-border rounded pl-4 pr-10 py-2 text-sm text-tactical-text focus:outline-none focus:border-tactical-green min-w-[140px]"
+              >
+                <option value="ALL">SATGAS: SEMUA</option>
+                {operations.map((op, idx) => (
+                  <option key={`${op.type}-${op.id}`} value={op.name}>{op.name.toUpperCase()}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tactical-muted pointer-events-none" />
+            </div>
+
+            <div className="relative">
+              <select 
+                value={selectedStatus}
+                onChange={(e) => {
+                  setSelectedStatus(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="appearance-none bg-tactical-bg border border-tactical-border rounded pl-4 pr-10 py-2 text-sm text-tactical-text focus:outline-none focus:border-tactical-green min-w-[140px]"
+              >
+                <option value="ALL">STATUS: SEMUA</option>
+                <option value="ACTIVE">AKTIF</option>
+                <option value="ON_LEAVE">CUTI</option>
+                <option value="ON_MISSION">TUGAS LUAR</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tactical-muted pointer-events-none" />
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {currentItems.map((person, i) => (
           <div key={person.id} className="tactical-glass tactical-border p-4 hover:border-tactical-green cursor-pointer transition-colors group">
-            <div className="flex gap-4 items-start">
-              <div className="w-12 h-12 bg-tactical-bg border border-tactical-border rounded overflow-hidden flex-shrink-0">
-                {person.photo_url ? (
-                  <img src={person.photo_url} alt={person.name} className="w-full h-full object-cover grayscale opacity-80 hover:grayscale-0 hover:opacity-100 transition-all" />
-                ) : (
-                  <div className="w-full h-full bg-tactical-muted/20 flex items-center justify-center">
-                    <Users className="w-6 h-6 text-tactical-muted opacity-50" />
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono text-tactical-green bg-tactical-green/10 px-1.5 py-0.5 rounded border border-tactical-green/20 uppercase">
-                    {person.rank}
-                  </span>
-                  <h3 className="text-sm font-bold text-tactical-text truncate group-hover:text-tactical-green">
-                    {person.name}
-                  </h3>
+            <Link href={`/personnel/${person.id}`}>
+              <div className="flex gap-4 items-start">
+                <div className="w-12 h-12 bg-tactical-bg border border-tactical-border rounded overflow-hidden flex-shrink-0">
+                  {person.photo_url ? (
+                    <img src={person.photo_url} alt={person.name} className="w-full h-full object-cover grayscale opacity-80 hover:grayscale-0 hover:opacity-100 transition-all" />
+                  ) : (
+                    <div className="w-full h-full bg-tactical-muted/20 flex items-center justify-center">
+                      <Users className="w-6 h-6 text-tactical-muted opacity-50" />
+                    </div>
+                  )}
                 </div>
-                <p className="text-xs font-mono text-tactical-muted mt-1">NRP. {person.nrp}</p>
-                
-                <div className="mt-3">
-                  <div className="text-[10px] font-mono text-tactical-muted bg-tactical-bg px-2 py-0.5 rounded inline-block border border-tactical-border/50 uppercase tracking-tighter">
-                    {person.unit_name || 'TANPA UNIT'}
+                <div className="flex-1 overflow-hidden">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-tactical-green bg-tactical-green/10 px-1.5 py-0.5 rounded border border-tactical-green/20 uppercase">
+                      {person.rank}
+                    </span>
+                    <h3 className="text-sm font-bold text-tactical-text truncate group-hover:text-tactical-green">
+                      {person.name}
+                    </h3>
+                  </div>
+                  <p className="text-xs font-mono text-tactical-muted mt-1 flex items-center justify-between">
+                    <span>NRP. {person.nrp}</span>
+                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${
+                      person.status === 'ACTIVE' ? 'bg-tactical-green/20 text-tactical-green' : 
+                      person.status === 'ON_MISSION' ? 'bg-tactical-cyan/20 text-tactical-cyan' :
+                      'bg-yellow-500/20 text-yellow-500'
+                    }`}>
+                      {person.status === 'ACTIVE' ? 'Aktif' : 
+                       person.status === 'ON_MISSION' ? 'Tugas Luar' :
+                       person.status === 'ON_LEAVE' ? 'Cuti' : person.status}
+                    </span>
+                  </p>
+                  
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="text-[10px] font-mono text-tactical-muted bg-tactical-bg px-2 py-0.5 rounded inline-block border border-tactical-border/50 uppercase tracking-tighter">
+                      {person.unit_name || 'TANPA UNIT'}
+                    </div>
+                    {person.current_op_name && (
+                      <div className="text-[10px] font-mono text-tactical-cyan bg-tactical-cyan/10 px-2 py-0.5 rounded inline-block border border-tactical-cyan/20 uppercase tracking-tighter">
+                        {person.current_op_name}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            </div>
+            </Link>
             <div className="mt-4 pt-3 border-t border-tactical-border flex justify-between items-center">
-              <span className={`text-[10px] font-bold px-2 py-1 rounded ${
-                person.status === 'ACTIVE' ? 'bg-tactical-green/20 text-tactical-green' : 'bg-yellow-500/20 text-yellow-500'
-              }`}>
-                {person.status.toUpperCase()}
-              </span>
+              <div className="flex gap-2">
+                <Link href={`/komunikasi/chat?id=${person.id}`}>
+                  <button className="p-1.5 bg-tactical-green/10 border border-tactical-green/30 text-tactical-green rounded hover:bg-tactical-green hover:text-tactical-bg transition-all" title="Secure Chat">
+                    <MessageSquare size={14} />
+                  </button>
+                </Link>
+                <Link href={`/komunikasi/vcon?id=${person.id}`}>
+                  <button className="p-1.5 bg-tactical-cyan/10 border border-tactical-cyan/30 text-tactical-cyan rounded hover:bg-tactical-cyan hover:text-tactical-bg transition-all" title="Video Conference">
+                    <Video size={14} />
+                  </button>
+                </Link>
+              </div>
               <Link href={`/personnel/${person.id}`}>
-                <button className="text-xs text-tactical-muted hover:text-tactical-text">Detail &rarr;</button>
+                <button className="text-xs text-tactical-muted hover:text-tactical-text font-mono uppercase tracking-tighter">Detail &rarr;</button>
               </Link>
             </div>
           </div>

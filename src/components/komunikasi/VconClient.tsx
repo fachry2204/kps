@@ -117,7 +117,7 @@ export default function VconClient() {
           <div className="w-full h-full flex flex-col relative bg-[#150a0a]">
             {/* Jitsi Iframe */}
             <iframe 
-              src={`https://meet.jit.si/${roomName}#userInfo.displayName="Jendral. K"&config.prejoinPageEnabled=false&config.disableDeepLinking=true&config.hideWatermark=true&config.disableBranding=true&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.SHOW_WATERMARK_FOR_GUESTS=false&interfaceConfig.SHOW_BRAND_WATERMARK=false&interfaceConfig.BRAND_WATERMARK_LINK=""`}
+              src={`https://meet.jit.si/${roomName}#userInfo.displayName="Administrator"&config.prejoinPageEnabled=false&config.disableDeepLinking=true&config.hideWatermark=true&config.disableBranding=true&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.SHOW_WATERMARK_FOR_GUESTS=false&interfaceConfig.SHOW_BRAND_WATERMARK=false&interfaceConfig.BRAND_WATERMARK_LINK=""`}
               allow="camera; microphone; fullscreen; display-capture; autoplay"
               className="w-full flex-1 border-0"
             />

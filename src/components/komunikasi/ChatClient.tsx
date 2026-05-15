@@ -5,7 +5,7 @@ import { Search, MoreVertical, Paperclip, Smile, Send, CheckCheck, User, ShieldA
 import { cn } from "@/lib/utils";
 import { getChatContacts, getChatMessages, sendChatMessage } from "@/app/actions";
 
-const CURRENT_USER_ID = 1; // Asumsi login sebagai ID 1 (Jendral. K)
+const CURRENT_USER_ID = 1; // Asumsi login sebagai ID 1 (Administrator)
 
 export default function ChatClient() {
   const [contacts, setContacts] = useState<any[]>([]);
@@ -99,7 +99,7 @@ export default function ChatClient() {
             <div className="w-10 h-10 rounded-full bg-tactical-green/20 border border-tactical-green flex items-center justify-center">
               <User className="text-tactical-green w-5 h-5" />
             </div>
-            <span className="font-bold text-tactical-text">Jendral. K</span>
+            <span className="font-bold text-tactical-text">Administrator</span>
           </div>
           <div className="flex gap-2">
             <button className="p-2 text-tactical-muted hover:text-tactical-text transition-colors rounded-full hover:bg-tactical-border/50">

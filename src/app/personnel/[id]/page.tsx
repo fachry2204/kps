@@ -1,4 +1,13 @@
-import { getPersonnelById, getPersonnelUnitHistory, getPersonnelOperationHistory } from "@/app/actions";
+import { 
+  getPersonnelById, 
+  getPersonnelUnitHistory, 
+  getPersonnelOperationHistory,
+  getPersonnelEducation,
+  getPersonnelMilEducation,
+  getPersonnelAwards,
+  getPersonnelLanguages,
+  getPersonnelAssignments
+} from "@/app/actions";
 import PersonnelProfile from "@/components/personnel/PersonnelProfile";
 import { notFound } from "next/navigation";
 
@@ -6,10 +15,24 @@ export default async function PersonnelProfilePage({ params }: { params: Promise
   const { id } = await params;
   const personnelId = parseInt(id);
   
-  const [personnel, unitHistory, operationHistory] = await Promise.all([
+  const [
+    personnel, 
+    unitHistory, 
+    operationHistory,
+    education,
+    milEducation,
+    awards,
+    languages,
+    assignments
+  ] = await Promise.all([
     getPersonnelById(personnelId),
     getPersonnelUnitHistory(personnelId),
-    getPersonnelOperationHistory(personnelId)
+    getPersonnelOperationHistory(personnelId),
+    getPersonnelEducation(personnelId),
+    getPersonnelMilEducation(personnelId),
+    getPersonnelAwards(personnelId),
+    getPersonnelLanguages(personnelId),
+    getPersonnelAssignments(personnelId)
   ]);
 
   if (!personnel) {
@@ -22,6 +45,11 @@ export default async function PersonnelProfilePage({ params }: { params: Promise
         personnel={personnel} 
         unitHistory={unitHistory} 
         operationHistory={operationHistory} 
+        education={education}
+        milEducation={milEducation}
+        awards={awards}
+        languages={languages}
+        assignments={assignments}
       />
     </div>
   );
