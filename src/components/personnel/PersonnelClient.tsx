@@ -29,6 +29,7 @@ export default function PersonnelClient({ personnel, units, operations }: Person
   const [selectedUnit, setSelectedUnit] = useState<string>("ALL");
   const [selectedOp, setSelectedOp] = useState<string>("ALL");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
+  const [selectedSpec, setSelectedSpec] = useState<string>("ALL");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 24;
 
@@ -42,10 +43,11 @@ export default function PersonnelClient({ personnel, units, operations }: Person
       const matchesUnit = selectedUnit === "ALL" || p.unit_id === parseInt(selectedUnit);
       const matchesOp = selectedOp === "ALL" || p.current_op_name === selectedOp;
       const matchesStatus = selectedStatus === "ALL" || p.status === selectedStatus;
+      const matchesSpec = selectedSpec === "ALL" || p.specialization === selectedSpec;
 
-      return matchesSearch && matchesUnit && matchesOp && matchesStatus;
+      return matchesSearch && matchesUnit && matchesOp && matchesStatus && matchesSpec;
     });
-  }, [personnel, searchQuery, selectedUnit, selectedOp, selectedStatus]);
+  }, [personnel, searchQuery, selectedUnit, selectedOp, selectedStatus, selectedSpec]);
 
   const totalPages = Math.ceil(filteredPersonnel.length / itemsPerPage);
   
@@ -149,6 +151,27 @@ export default function PersonnelClient({ personnel, units, operations }: Person
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tactical-muted pointer-events-none" />
             </div>
+
+            <div className="relative">
+              <select 
+                value={selectedSpec}
+                onChange={(e) => {
+                  setSelectedSpec(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="appearance-none bg-tactical-bg border border-tactical-border rounded pl-4 pr-10 py-2 text-sm text-tactical-text focus:outline-none focus:border-tactical-green min-w-[140px]"
+              >
+                <option value="ALL">SPESIALISASI: SEMUA</option>
+                <option value="PARAKO">PARAKO</option>
+                <option value="SANDHA">SANDHA</option>
+                <option value="GULTOR">GULTOR</option>
+                <option value="DEMOLISI">DEMOLISI</option>
+                <option value="BAKDUK">BAKDUK</option>
+                <option value="BAHASA">BAHASA</option>
+                <option value="Lainnya">LAINNYA</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tactical-muted pointer-events-none" />
+            </div>
           </div>
         </div>
       </div>
@@ -169,16 +192,16 @@ export default function PersonnelClient({ personnel, units, operations }: Person
                 </div>
                 <div className="flex-1 overflow-hidden">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono text-tactical-green bg-tactical-green/10 px-1.5 py-0.5 rounded border border-tactical-green/20 uppercase">
+                    <span className="text-[11px] font-mono text-tactical-green bg-tactical-green/10 px-2 py-0.5 rounded border border-tactical-green/20 uppercase font-bold">
                       {person.rank}
                     </span>
-                    <h3 className="text-sm font-bold text-tactical-text truncate group-hover:text-tactical-green">
+                    <h3 className="text-base font-bold text-tactical-text truncate group-hover:text-tactical-green tracking-tight">
                       {person.name}
                     </h3>
                   </div>
-                  <p className="text-xs font-mono text-tactical-muted mt-1 flex items-center justify-between">
-                    <span>NRP. {person.nrp}</span>
-                    <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded ${
+                  <p className="text-sm font-mono text-tactical-muted mt-1.5 flex items-center justify-between">
+                    <span className="tracking-tighter">NRP. {person.nrp}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
                       person.status === 'ACTIVE' ? 'bg-tactical-green/20 text-tactical-green' : 
                       person.status === 'ON_MISSION' ? 'bg-tactical-cyan/20 text-tactical-cyan' :
                       'bg-yellow-500/20 text-yellow-500'
@@ -189,14 +212,28 @@ export default function PersonnelClient({ personnel, units, operations }: Person
                     </span>
                   </p>
                   
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <div className="text-[10px] font-mono text-tactical-muted bg-tactical-bg px-2 py-0.5 rounded inline-block border border-tactical-border/50 uppercase tracking-tighter">
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <div className="text-[11px] font-mono text-tactical-muted bg-tactical-bg px-2.5 py-1 rounded inline-block border border-tactical-border/50 uppercase tracking-tight font-bold">
                       {person.unit_name || 'TANPA UNIT'}
                     </div>
                     {person.current_op_name && (
-                      <div className="text-[10px] font-mono text-tactical-cyan bg-tactical-cyan/10 px-2 py-0.5 rounded inline-block border border-tactical-cyan/20 uppercase tracking-tighter">
+                      <span className="px-2 py-1 bg-tactical-cyan/10 text-tactical-cyan border border-tactical-cyan/30 text-[10px] font-mono rounded-sm uppercase font-bold tracking-tight">
                         {person.current_op_name}
-                      </div>
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Specialization Badges */}
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <span className="text-[10px] font-mono text-tactical-muted uppercase tracking-widest mr-1 self-center font-bold">Spesialis:</span>
+                    {person.specialization ? person.specialization.split(", ").map((spec: string, idx: number) => (
+                      <span key={idx} className="px-2 py-1 bg-tactical-green/5 text-tactical-green border border-tactical-green/20 text-[10px] font-mono rounded uppercase font-bold tracking-tight">
+                        {spec}
+                      </span>
+                    )) : (
+                      <span className="px-2 py-1 bg-tactical-panel text-tactical-muted border border-tactical-border text-[10px] font-mono rounded uppercase font-bold tracking-tight">
+                        UMUM
+                      </span>
                     )}
                   </div>
                 </div>
@@ -216,7 +253,9 @@ export default function PersonnelClient({ personnel, units, operations }: Person
                 </Link>
               </div>
               <Link href={`/personnel/${person.id}`}>
-                <button className="text-xs text-tactical-muted hover:text-tactical-text font-mono uppercase tracking-tighter">Detail &rarr;</button>
+                <button className="px-3 py-1.5 bg-tactical-red text-white text-[10px] font-mono font-bold rounded hover:bg-tactical-red/80 transition-all uppercase tracking-tighter shadow-lg shadow-tactical-red/20">
+                  Lihat Data Personil
+                </button>
               </Link>
             </div>
           </div>

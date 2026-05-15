@@ -1,5 +1,5 @@
 import OperationDetailClient from "@/components/operations/OperationDetailClient";
-import { getOpsLuarNegeri, getOpAssignments } from "@/app/actions";
+import { getOpsLuarNegeri, getOpAssignments, getOperationAssets } from "@/app/actions";
 
 export default async function OperationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -19,6 +19,7 @@ export default async function OperationDetailPage({ params }: { params: Promise<
     type: operation.type,
     commander: assignments.find(a => a.role === 'KOMANDAN'),
     members: assignments.filter(a => a.role === 'ANGGOTA'),
+    assets: await getOperationAssets(Number(id), 'LUAR_NEGERI'),
     coordinates: operation.coordinates
   } : null;
   

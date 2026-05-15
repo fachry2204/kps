@@ -18,7 +18,10 @@ import {
   User,
   ExternalLink,
   Loader2,
-  Crosshair
+  Package,
+  Crosshair,
+  Settings,
+  Truck
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
@@ -35,6 +38,7 @@ export default function OperationDetailClient({ id, initialData }: { id: string,
   const router = useRouter();
   const pathname = usePathname();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'ALUTSISTA' | 'SENJATA'>('ALUTSISTA');
 
   const details = {
     name: initialData?.operation_name || initialData?.name || (id !== "undefined" ? `SATGAS OPS ${id}` : "SATGAS OPS"),
@@ -48,6 +52,7 @@ export default function OperationDetailClient({ id, initialData }: { id: string,
     type: initialData?.type || "Special Operations",
     commander: initialData?.commander || null,
     members: initialData?.members || [],
+    assets: initialData?.assets || [],
     objectives: initialData?.mission_objectives || "Mission objectives have not been explicitly defined in the tactical plan.",
     intelSummary: "Recent surveillance indicates increased movement in the northern sector. Tactical teams are on high alert.",
     timeline: [
@@ -180,8 +185,27 @@ export default function OperationDetailClient({ id, initialData }: { id: string,
                   </div>
                   <div className="flex-1">
                     <div className="text-lg font-bold text-tactical-text uppercase tracking-tighter">{details.commander.name}</div>
-                    <div className="text-xs font-mono text-tactical-yellow uppercase mb-1">{details.commander.rank}</div>
-                    <div className="text-[10px] font-mono text-tactical-muted">NRP: {details.commander.nrp}</div>
+                    <div className="flex flex-wrap gap-2 mb-2 mt-1">
+                      <div className="px-2 py-0.5 bg-tactical-red text-white text-[9px] font-mono font-bold rounded uppercase">
+                        {details.commander.role || 'KOMANDAN'}
+                      </div>
+                      <div className="px-2 py-0.5 bg-tactical-bg border border-tactical-yellow/30 text-tactical-yellow text-[9px] font-mono rounded uppercase">
+                        {details.commander.rank}
+                      </div>
+                      {details.commander.specialization ? details.commander.specialization.split(", ").map((spec: string, idx: number) => (
+                        <div key={idx} className="px-2 py-0.5 bg-tactical-bg border border-tactical-green/30 text-tactical-green text-[9px] font-mono rounded uppercase">
+                          {spec}
+                        </div>
+                      )) : (
+                        <div className="px-2 py-0.5 bg-tactical-bg border border-tactical-border text-tactical-muted text-[9px] font-mono rounded uppercase">
+                          UMUM
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 text-[10px] font-mono">
+                      <span className="text-tactical-muted uppercase">NRP: <span className="text-tactical-text">{details.commander.nrp}</span></span>
+                      <span className="text-tactical-muted uppercase">TEL: <span className="text-tactical-cyan">{details.commander.phone_number || '-'}</span></span>
+                    </div>
                   </div>
                   <Link href={`/personnel/${details.commander.id}`} className="p-2 hover:bg-tactical-yellow/10 rounded text-tactical-yellow transition-all">
                     <ExternalLink size={18} />
@@ -206,8 +230,24 @@ export default function OperationDetailClient({ id, initialData }: { id: string,
                         <User size={18} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-tactical-text truncate">{member.name}</div>
-                        <div className="text-[9px] font-mono text-tactical-muted uppercase">{member.rank} | {member.nrp}</div>
+                        <div className="text-xs font-bold text-tactical-text truncate uppercase">{member.name}</div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[9px] font-mono text-tactical-red font-bold uppercase">{member.role || 'ANGGOTA'}</span>
+                          <span className="text-[9px] font-mono text-tactical-yellow uppercase">{member.rank}</span>
+                          <span className="text-[9px] font-mono text-tactical-muted uppercase">| {member.nrp}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 opacity-80 flex-wrap">
+                          <span className="text-[9px] font-mono text-tactical-cyan uppercase">{member.phone_number || '-'}</span>
+                          {member.specialization ? member.specialization.split(", ").map((spec: string, idx: number) => (
+                            <span key={idx} className="text-[8px] font-mono text-tactical-green bg-tactical-green/10 border border-tactical-green/30 px-1 rounded uppercase tracking-tighter font-bold">
+                              {spec}
+                            </span>
+                          )) : (
+                            <span className="text-[8px] font-mono text-tactical-muted bg-tactical-panel px-1 rounded uppercase tracking-tighter">
+                              UMUM
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <Link href={`/personnel/${member.id}`} className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-tactical-cyan/10 rounded text-tactical-cyan transition-all">
                         <ExternalLink size={14} />
@@ -220,6 +260,74 @@ export default function OperationDetailClient({ id, initialData }: { id: string,
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+
+          <div className="tactical-glass tactical-border p-6">
+            <div className="flex items-center justify-between border-b border-tactical-border pb-3 mb-6">
+              <h3 className="text-sm font-bold text-tactical-text font-mono flex items-center gap-2 uppercase">
+                <Package size={16} className="text-tactical-cyan" /> Aset Operasi
+              </h3>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setActiveTab('ALUTSISTA')}
+                  className={`px-4 py-1.5 rounded font-mono text-[10px] font-bold transition-all ${
+                    activeTab === 'ALUTSISTA' 
+                      ? 'bg-tactical-cyan text-black shadow-[0_0_15px_rgba(34,211,238,0.3)]' 
+                      : 'bg-tactical-panel text-tactical-muted hover:text-tactical-text border border-tactical-border'
+                  }`}
+                >
+                  ALUTSISTA
+                </button>
+                <button 
+                  onClick={() => setActiveTab('SENJATA')}
+                  className={`px-4 py-1.5 rounded font-mono text-[10px] font-bold transition-all ${
+                    activeTab === 'SENJATA' 
+                      ? 'bg-tactical-cyan text-black shadow-[0_0_15px_rgba(34,211,238,0.3)]' 
+                      : 'bg-tactical-panel text-tactical-muted hover:text-tactical-text border border-tactical-border'
+                  }`}
+                >
+                  SENJATA
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {details.assets.filter((a: any) => a.asset_type === activeTab).length > 0 ? (
+                details.assets.filter((a: any) => a.asset_type === activeTab).map((asset: any) => (
+                  <div key={asset.id} className="p-4 bg-tactical-panel/30 border border-tactical-border rounded hover:border-tactical-cyan/50 transition-all group relative overflow-hidden">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-tactical-bg rounded border border-tactical-border">
+                          {asset.asset_type === 'ALUTSISTA' ? <Truck size={18} className="text-tactical-cyan" /> : <Target size={18} className="text-tactical-yellow" />}
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-tactical-text uppercase tracking-tighter">{asset.asset_name}</div>
+                          <div className="text-[9px] font-mono text-tactical-muted uppercase">{asset.quantity} UNIT</div>
+                        </div>
+                      </div>
+                      <span className={`text-[8px] font-bold font-mono px-1.5 py-0.5 rounded border ${
+                        asset.condition_status === 'READY' 
+                          ? 'bg-tactical-green/10 text-tactical-green border-tactical-green/30' 
+                          : 'bg-tactical-yellow/10 text-tactical-yellow border-tactical-yellow/30'
+                      }`}>
+                        {asset.condition_status}
+                      </span>
+                    </div>
+                    {asset.description && (
+                      <p className="text-[10px] font-mono text-tactical-muted italic mt-2 line-clamp-2 leading-relaxed">
+                        {asset.description}
+                      </p>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-full py-12 text-center">
+                   <div className="text-xs font-mono text-tactical-muted italic border border-dashed border-tactical-border rounded p-8">
+                    Belum ada data {activeTab.toLowerCase()} yang ditugaskan untuk operasi ini.
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

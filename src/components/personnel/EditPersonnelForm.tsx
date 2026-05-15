@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   User, 
   Upload, 
@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { addPersonnel } from "@/app/actions";
+import { updatePersonnel } from "@/app/actions";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 
@@ -28,22 +28,33 @@ const LocationPicker = dynamic(() => import("../units/LocationPicker"), {
   loading: () => <div className="h-[300px] bg-tactical-bg flex items-center justify-center text-tactical-green font-mono text-xs uppercase">Initializing Tactical Grid...</div>
 });
 
-export default function AddPersonnelForm() {
+interface EditPersonnelFormProps {
+  personnel: any;
+}
+
+export default function EditPersonnelForm({ personnel }: EditPersonnelFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(personnel.photo_url || null);
   const [photoName, setPhotoName] = useState<string | null>(null);
-  const [gpsCoords, setGpsCoords] = useState<[number, number]>([-6.2088, 106.8456]); // Default Jakarta
-  const [hasLocation, setHasLocation] = useState(false);
-  const [address, setAddress] = useState("");
+  
+  const initialCoords = personnel.gps_coordinates 
+    ? personnel.gps_coordinates.split(',').map((c: string) => parseFloat(c.trim())) as [number, number]
+    : [-6.2088, 106.8456] as [number, number];
+    
+  const [gpsCoords, setGpsCoords] = useState<[number, number]>(initialCoords);
+  const [hasLocation, setHasLocation] = useState(!!personnel.gps_coordinates);
+  const [address, setAddress] = useState(personnel.address || "");
   const [isGeocoding, setIsGeocoding] = useState(false);
-  const [selectedSpecs, setSelectedSpecs] = useState<string[]>([]);
-  const [otherSpec, setOtherSpec] = useState("");
-  const [isOtherSelected, setIsOtherSelected] = useState(false);
 
   const SPEC_OPTIONS = [
     "PARAKO", "SANDHA", "GULTOR", "DEMOLISI", "BAKDUK", "BAHASA"
   ];
+
+  const existingSpecs = personnel.specialization ? personnel.specialization.split(", ").map((s: string) => s.trim()) : [];
+  const [selectedSpecs, setSelectedSpecs] = useState<string[]>(existingSpecs.filter((s: string) => SPEC_OPTIONS.includes(s)));
+  const [otherSpec, setOtherSpec] = useState(existingSpecs.find((s: string) => !SPEC_OPTIONS.includes(s)) || "");
+  const [isOtherSelected, setIsOtherSelected] = useState(!!existingSpecs.find((s: string) => !SPEC_OPTIONS.includes(s)));
 
   const toggleSpec = (spec: string) => {
     setSelectedSpecs(prev => 
@@ -101,31 +112,31 @@ export default function AddPersonnelForm() {
     if (isOtherSelected && otherSpec) {
       finalSpecs.push(otherSpec);
     }
-    
+
     const data = {
       name: formData.get("name") as string,
       nrp: formData.get("nrp") as string,
       rank: formData.get("rank") as string,
-      unit_id: parseInt(formData.get("unit_id") as string),
+      unit_id: personnel.unit_id,
       specialization: finalSpecs.join(", "),
-      status: "ACTIVE", // Default status
+      status: personnel.status || "ACTIVE",
       joined_date: formData.get("joined_date") as string,
-      address: formData.get("address") as string,
+      address: address,
       gps_coordinates: hasLocation ? `${gpsCoords[0]}, ${gpsCoords[1]}` : "",
       phone_number: formData.get("phone_number") as string,
       emergency_contact: formData.get("emergency_contact") as string,
       email: formData.get("email") as string,
-      photoBase64: photoPreview,
+      photoBase64: photoName ? photoPreview : null, // Only send if changed
       photoName: photoName
     };
 
     try {
-      const result = await addPersonnel(data);
+      const result = await updatePersonnel(personnel.id, data);
       if (result.success) {
-        router.push("/personnel");
+        router.push(`/personnel/${personnel.id}`);
         router.refresh();
       } else {
-        alert("Gagal menyimpan: " + result.error);
+        alert("Gagal memperbarui: " + result.error);
       }
     } catch (error) {
       console.error("Submit failed:", error);
@@ -139,14 +150,14 @@ export default function AddPersonnelForm() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <Link href="/personnel">
+          <Link href={`/personnel/${personnel.id}`}>
             <button className="p-2 hover:bg-tactical-border rounded-full transition-colors text-tactical-muted hover:text-tactical-text">
               <ChevronLeft size={24} />
             </button>
           </Link>
           <div>
-            <h2 className="text-2xl font-bold text-tactical-text uppercase tracking-tight">REGISTRASI PERSONIL BARU</h2>
-            <p className="text-tactical-muted font-mono text-sm uppercase">Personnel Enlistment System</p>
+            <h2 className="text-2xl font-bold text-tactical-text uppercase tracking-tight">EDIT DATA PERSONIL</h2>
+            <p className="text-tactical-muted font-mono text-sm uppercase">Update Personnel Intelligence Record</p>
           </div>
         </div>
       </div>
@@ -192,8 +203,8 @@ export default function AddPersonnelForm() {
                   <input 
                     required
                     name="name"
+                    defaultValue={personnel.name}
                     type="text" 
-                    placeholder="Nama Lengkap Tanpa Gelar..."
                     className="w-full bg-tactical-bg border border-tactical-border rounded px-4 py-2.5 text-sm text-tactical-text focus:outline-none focus:border-tactical-green transition-colors"
                   />
                 </div>
@@ -205,8 +216,8 @@ export default function AddPersonnelForm() {
                   <input 
                     required
                     name="nrp"
+                    defaultValue={personnel.nrp}
                     type="text" 
-                    placeholder="Nomor Registrasi Pokok..."
                     className="w-full bg-tactical-bg border border-tactical-border rounded px-4 py-2.5 text-sm text-tactical-text focus:outline-none focus:border-tactical-green transition-colors"
                   />
                 </div>
@@ -217,6 +228,7 @@ export default function AddPersonnelForm() {
                   </label>
                   <select 
                     name="rank"
+                    defaultValue={personnel.rank}
                     className="w-full bg-tactical-bg border border-tactical-border rounded px-4 py-2.5 text-sm text-tactical-text focus:outline-none focus:border-tactical-green transition-colors"
                   >
                     {RANKS.map(rank => <option key={rank} value={rank}>{rank}</option>)}
@@ -294,6 +306,7 @@ export default function AddPersonnelForm() {
                   <input 
                     required
                     name="joined_date"
+                    defaultValue={personnel.joined_date ? new Date(personnel.joined_date).toISOString().split('T')[0] : ""}
                     type="date" 
                     className="w-full bg-tactical-bg border border-tactical-border rounded px-4 py-2.5 text-sm text-tactical-text focus:outline-none focus:border-tactical-green transition-colors"
                   />
@@ -317,7 +330,6 @@ export default function AddPersonnelForm() {
                         rows={3}
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
-                        placeholder="Masukkan alamat lengkap domisili..."
                         className="w-full bg-tactical-bg border border-tactical-border rounded px-4 py-2.5 text-sm text-tactical-text focus:outline-none focus:border-tactical-green transition-colors resize-none pr-24"
                       ></textarea>
                       <button 
@@ -339,8 +351,8 @@ export default function AddPersonnelForm() {
                       </label>
                       <input 
                         name="phone_number"
+                        defaultValue={personnel.phone_number}
                         type="tel" 
-                        placeholder="+62..."
                         className="w-full bg-tactical-bg border border-tactical-border rounded px-4 py-2.5 text-sm text-tactical-text focus:outline-none focus:border-tactical-green transition-colors"
                       />
                     </div>
@@ -350,8 +362,8 @@ export default function AddPersonnelForm() {
                       </label>
                       <input 
                         name="email"
+                        defaultValue={personnel.email}
                         type="email" 
-                        placeholder="nama@email.com"
                         className="w-full bg-tactical-bg border border-tactical-border rounded px-4 py-2.5 text-sm text-tactical-text focus:outline-none focus:border-tactical-green transition-colors"
                       />
                     </div>
@@ -359,12 +371,12 @@ export default function AddPersonnelForm() {
 
                   <div className="space-y-2">
                     <label className="text-[10px] font-mono text-tactical-muted flex items-center gap-2 uppercase">
-                      <Heart size={12} /> Kontak Darurat (Nama & No. HP)
+                      <Heart size={12} /> Kontak Darurat
                     </label>
                     <input 
                       name="emergency_contact"
+                      defaultValue={personnel.emergency_contact}
                       type="text" 
-                      placeholder="Contoh: Istri - 0812..."
                       className="w-full bg-tactical-bg border border-tactical-border rounded px-4 py-2.5 text-sm text-tactical-text focus:outline-none focus:border-tactical-green transition-colors"
                     />
                   </div>
@@ -396,7 +408,6 @@ export default function AddPersonnelForm() {
                       }}
                       hasLocation={hasLocation}
                     />
-                    <p className="text-[9px] font-mono text-tactical-muted mt-2 uppercase">Geser pin untuk menentukan koordinat domisili yang tepat</p>
                   </div>
                 </div>
               </div>
@@ -404,7 +415,7 @@ export default function AddPersonnelForm() {
 
             {/* Action Buttons */}
             <div className="flex justify-end gap-4 pt-4">
-              <Link href="/personnel">
+              <Link href={`/personnel/${personnel.id}`}>
                 <button type="button" className="px-6 py-2.5 text-sm font-mono text-tactical-muted hover:text-tactical-text transition-colors uppercase">
                   Batal
                 </button>
@@ -412,14 +423,14 @@ export default function AddPersonnelForm() {
               <button 
                 type="submit"
                 disabled={loading}
-                className="px-8 py-2.5 bg-tactical-green text-tactical-bg font-bold rounded flex items-center gap-2 hover:bg-tactical-green/90 transition-all disabled:opacity-50 uppercase tracking-widest"
+                className="px-8 py-2.5 bg-tactical-cyan text-tactical-bg font-bold rounded flex items-center gap-2 hover:bg-tactical-cyan/90 transition-all disabled:opacity-50 uppercase tracking-widest"
               >
                 {loading ? (
                   <div className="w-5 h-5 border-2 border-tactical-bg border-t-transparent rounded-full animate-spin"></div>
                 ) : (
                   <>
                     <Save size={18} />
-                    Simpan Data
+                    Update Data
                   </>
                 )}
               </button>

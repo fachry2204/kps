@@ -799,7 +799,7 @@ export async function assignPersonnelToOp(data: {
 }
 export async function getOpAssignments(opId: number, opType: 'DALAM_NEGERI' | 'LUAR_NEGERI') {
   const [rows] = await pool.query(`
-    SELECT a.role, p.id, p.name, p.rank, p.nrp, p.specialization, p.photo_url
+    SELECT a.role, p.id, p.name, p.rank, p.nrp, p.specialization, p.phone_number, p.photo_url
     FROM personnel_ops_assignments a
     JOIN personnel p ON a.personnel_id = p.id
     WHERE a.op_id = ? AND a.op_type = ?
@@ -895,6 +895,48 @@ export async function markNotificationRead(notificationId: number) {
   }
 }
 
-// 16. Logistics System
+// 16. Operational Assets
+export async function getOperationAssets(opId: number, opType: string) {
+  try {
+    const [rows] = await pool.query(
+      'SELECT * FROM operation_assets WHERE operation_id = ? AND operation_type = ? ORDER BY asset_name ASC',
+      [opId, opType]
+    );
+    return rows as any[];
+  } catch (error) {
+    console.error("Get Operation Assets Error:", error);
+    return [];
+  }
+}
+
+export async function addOperationAsset(data: {
+  operation_id: number;
+  operation_type: string;
+  asset_name: string;
+  asset_type: 'ALUTSISTA' | 'SENJATA';
+  quantity: number;
+  condition_status: string;
+  description: string;
+}) {
+  try {
+    const { operation_id, operation_type, asset_name, asset_type, quantity, condition_status, description } = data;
+    await pool.query(
+      'INSERT INTO operation_assets (operation_id, operation_type, asset_name, asset_type, quantity, condition_status, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [operation_id, operation_type, asset_name, asset_type, quantity, condition_status, description]
+    );
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function deleteOperationAsset(id: number) {
+  try {
+    await pool.query('DELETE FROM operation_assets WHERE id = ?', [id]);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
 
 
