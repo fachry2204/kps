@@ -301,11 +301,40 @@ export default function MapComponent({
                   eventHandlers={{
                     click: (e) => {
                       L.DomEvent.stopPropagation(e);
-                      if (onMarkerClick) onMarkerClick([lat, lng], 18);
+                      // Use zoom level 15 instead of 18 for better reliability
+                      if (onMarkerClick) onMarkerClick([lat, lng], 15);
                       setSelectedEntity({ ...unit, pos: [lat, lng], type: 'UNIT' });
                     }
                   }}
-                />
+                >
+                  <Popup className="tactical-popup" autoPan={false}>
+                    <div className="flex flex-col gap-2">
+                      <div className="border-b border-tactical-green/30 pb-2">
+                        <div className="font-bold text-tactical-green text-sm tracking-tight uppercase">{unit.unit_name}</div>
+                        <div className="text-[10px] font-mono text-tactical-muted uppercase">{unit.unit_type || 'KESATUAN'}</div>
+                      </div>
+                      
+                      <div className="flex items-start gap-2 bg-tactical-green/5 border border-tactical-green/20 p-2 rounded">
+                        <MapPin className="w-3 h-3 text-tactical-green mt-0.5 shrink-0" />
+                        <div>
+                          <div className="text-[9px] font-mono text-tactical-muted uppercase">LOKASI / ALAMAT</div>
+                          <div className="text-[11px] font-bold text-tactical-text leading-tight">{unit.location}</div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 mt-1">
+                        <div className="bg-tactical-bg/50 p-1.5 rounded border border-tactical-border/50">
+                          <div className="text-[8px] text-tactical-muted uppercase">KEKUATAN</div>
+                          <div className="text-xs font-bold text-tactical-text">{unit.strength || 0} PERS</div>
+                        </div>
+                        <div className="bg-tactical-bg/50 p-1.5 rounded border border-tactical-border/50">
+                          <div className="text-[8px] text-tactical-muted uppercase">STATUS</div>
+                          <div className="text-xs font-bold text-tactical-green uppercase">{unit.status || 'ACTIVE'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
               );
             })}
           </>
@@ -461,7 +490,10 @@ export default function MapComponent({
                  <div className="mt-2 text-center">
                     <div className="text-[10px] text-[#c9a041] font-bold tracking-widest">{selectedEntity.unit_code || 'U-03'}</div>
                      <div className="text-base font-black text-white tracking-tight italic uppercase leading-tight px-4">{selectedEntity.unit_name || selectedEntity.name}</div>
-                     <div className="mt-1 px-8 text-[7px] text-gray-400 font-mono line-clamp-2 uppercase opacity-70 leading-none">{selectedEntity.location}</div>
+                     <div className="mt-2 px-6 text-[10px] text-gray-300 font-medium line-clamp-3 uppercase leading-tight max-w-[180px] drop-shadow-md">
+                        <MapPin className="w-2 h-2 inline-block mr-1 text-[#c9a041]" />
+                        {selectedEntity.location}
+                     </div>
                   </div>
               </div>
 
@@ -504,6 +536,17 @@ export default function MapComponent({
                 icon={<ClipboardList className="w-8 h-8 text-[#c9a041]" />} 
                 label="Kegiatan" 
                 onClick={() => setActiveModal('KEGIATAN')}
+              />
+
+              {/* BOTTOM-RIGHT: Navigate / Alamat */}
+              <RadialItem 
+                angle={45} 
+                distance={160} 
+                icon={<MapPin className="w-8 h-8 text-[#c9a041]" />} 
+                label="Alamat" 
+                onClick={() => {
+                  window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedEntity.location)}`, '_blank');
+                }}
               />
 
               {/* Close Button */}
