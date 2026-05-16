@@ -235,11 +235,25 @@ export default function MapComponent({
 
   useEffect(() => {
     if (externalActiveModal) {
-      setActiveModal(externalActiveModal);
+      if (externalActiveModal === 'LOGISTIK_MAP' && externalSelectedEntity) {
+        const itemName = externalSelectedEntity.name || externalSelectedEntity.item_name;
+        getLogisticsDistributionDetails(itemName).then(data => {
+          const allLocs = [
+            ...(data.units || []).map((u: any) => ({ ...u, type: 'UNIT' })),
+            ...(data.ops_dn || []).map((o: any) => ({ ...o, type: 'DALAM_NEGERI' })),
+            ...(data.ops_ln || []).map((o: any) => ({ ...o, type: 'LUAR_NEGERI' }))
+          ];
+          setHighlightedLocations(allLocs);
+          setActiveModal(null);
+        });
+      } else {
+        setActiveModal(externalActiveModal);
+      }
+      
       if (externalSelectedEntity) {
         if (externalActiveModal === 'OPERASI_DETAIL') setSelectedOperation(externalSelectedEntity);
         if (externalActiveModal === 'INTEL_DETAIL') setSelectedIntel(externalSelectedEntity);
-        if (externalActiveModal === 'LOGISTIK_DETAIL') setSelectedAsset(externalSelectedEntity);
+        if (externalActiveModal === 'LOGISTIK_DETAIL' || externalActiveModal === 'LOGISTIK_MAP') setSelectedAsset(externalSelectedEntity);
       }
     } else if (externalSelectedEntity && externalSelectedEntity.type === 'UNIT') {
       // If we have an external selected entity but NO active modal, 

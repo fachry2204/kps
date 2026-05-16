@@ -692,7 +692,7 @@ function MapContent() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setExtSelectedEntity({...item, type: 'LOGISTIK', name: item.item_name, quantity: item.total_quantity});
-                            setExtActiveModal('LOGISTIK_DETAIL');
+                            setExtActiveModal('LOGISTIK_MAP');
                           }}
                           className="px-2 py-1 bg-tactical-green/20 border border-tactical-green/40 text-[9px] font-black text-tactical-green rounded hover:bg-tactical-green hover:text-black transition-all whitespace-nowrap"
                         >

@@ -229,30 +229,37 @@ export default function IntelClient({ reports }: IntelClientProps) {
 
             {/* Date Filter */}
             <div className="flex items-center gap-2">
-              <div className="relative">
-                <select 
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  className="bg-tactical-bg border border-tactical-border rounded px-4 py-2 pr-10 text-xs font-mono text-tactical-text focus:border-tactical-cyan outline-none appearance-none cursor-pointer uppercase transition-all tracking-wider"
-                >
-                  <option value="ALL">SEMUA WAKTU</option>
-                  <option value="1W">1 MINGGU TERAKHIR</option>
-                  <option value="2W">2 MINGGU TERAKHIR</option>
-                  <option value="CUSTOM">PILIH TANGGAL</option>
-                </select>
-                <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-tactical-muted">
-                  <Activity size={12} />
+              {dateFilter !== "CUSTOM" ? (
+                <div className="relative">
+                  <select 
+                    value={dateFilter}
+                    onChange={(e) => {
+                      if (e.target.value === "CUSTOM") {
+                        setDateFilter("CUSTOM");
+                      } else {
+                        setDateFilter(e.target.value);
+                      }
+                    }}
+                    className="bg-tactical-bg border border-tactical-border rounded px-4 py-2 pr-10 text-xs font-mono text-tactical-text focus:border-tactical-cyan outline-none appearance-none cursor-pointer uppercase transition-all tracking-wider"
+                  >
+                    <option value="ALL">SEMUA WAKTU</option>
+                    <option value="1W">1 MINGGU TERAKHIR</option>
+                    <option value="2W">2 MINGGU TERAKHIR</option>
+                    <option value="CUSTOM">PILIH TANGGAL</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-tactical-muted">
+                    <Activity size={12} />
+                  </div>
                 </div>
-              </div>
-
-              {dateFilter === "CUSTOM" && (
-                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 transition-all bg-tactical-panel/30 border border-tactical-border rounded px-2 py-1">
+              ) : (
+                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 transition-all bg-tactical-panel border border-tactical-cyan/50 rounded px-3 py-1.5 shadow-[0_0_10px_rgba(34,211,238,0.2)]">
                   <div className="relative group">
                     <input 
                       type="date"
+                      autoFocus
                       value={dateRange.start}
                       onChange={(e) => setDateRange({...dateRange, start: e.target.value})}
-                      className="bg-transparent border-none text-[10px] font-mono text-tactical-text focus:outline-none transition-all uppercase cursor-pointer"
+                      className="bg-transparent border-none text-[11px] font-mono text-tactical-cyan focus:outline-none transition-all uppercase cursor-pointer"
                     />
                   </div>
                   <span className="text-tactical-muted text-[10px] font-mono mx-1">➜</span>
@@ -261,9 +268,15 @@ export default function IntelClient({ reports }: IntelClientProps) {
                       type="date"
                       value={dateRange.end}
                       onChange={(e) => setDateRange({...dateRange, end: e.target.value})}
-                      className="bg-transparent border-none text-[10px] font-mono text-tactical-text focus:outline-none transition-all uppercase cursor-pointer"
+                      className="bg-transparent border-none text-[11px] font-mono text-tactical-cyan focus:outline-none transition-all uppercase cursor-pointer"
                     />
                   </div>
+                  <button 
+                    onClick={() => setDateFilter("ALL")}
+                    className="ml-2 text-tactical-red hover:scale-110 transition-transform"
+                  >
+                    <X size={14} />
+                  </button>
                 </div>
               )}
             </div>
@@ -404,9 +417,9 @@ export default function IntelClient({ reports }: IntelClientProps) {
                       <div className="flex items-center justify-end gap-2">
                         <button 
                           onClick={() => handleOpenView(row)}
-                          className="flex items-center gap-1 px-3 py-1 bg-tactical-panel/50 border border-tactical-border/50 text-tactical-muted text-[10px] font-mono rounded hover:bg-tactical-cyan/20 hover:text-tactical-cyan hover:border-tactical-cyan/50 transition-all uppercase tracking-tighter"
+                          className="flex items-center gap-2 px-5 py-2 bg-tactical-cyan text-black text-[11px] font-black font-mono rounded hover:bg-tactical-cyan/80 hover:shadow-[0_0_15px_rgba(34,211,238,0.5)] transition-all uppercase tracking-wider"
                         >
-                          <Eye size={12} /> LIHAT DETAIL
+                          <Eye size={14} /> LIHAT DETAIL
                         </button>
                       </div>
                     </td>
@@ -497,14 +510,13 @@ export default function IntelClient({ reports }: IntelClientProps) {
       {/* Add Modal */}
       <AnimatePresence>
         {showAddModal && (
-          <div className="fixed inset-0 z-[100] overflow-y-auto custom-scrollbar bg-black/80 backdrop-blur-sm">
-            <div className="min-h-full flex items-center justify-center p-4">
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="relative w-full max-w-2xl tactical-glass tactical-border p-8 my-8"
-              >
+          <div className="fixed inset-0 z-[100] overflow-y-auto custom-scrollbar bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl tactical-glass tactical-border p-8 my-auto"
+            >
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-tactical-text uppercase tracking-tighter flex items-center gap-2">
                   <ShieldAlert className="text-tactical-red" /> {editId ? "PERBARUI LAPORAN INTELIJEN" : "INISIALISASI LAPORAN INTELIJEN"}
@@ -661,27 +673,18 @@ export default function IntelClient({ reports }: IntelClientProps) {
                   </button>
                 </div>
               </form>
-              </motion.div>
-            </div>
+            </motion.div>
           </div>
         )}
 
         {showViewModal && selectedReport && (
-          <div className="fixed inset-0 z-[2000] overflow-y-auto custom-scrollbar bg-black/90 backdrop-blur-xl">
-            <div className="min-h-full flex items-center justify-center p-4 md:p-8">
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setShowViewModal(false)}
-                className="fixed inset-0 pointer-events-none"
-              />
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="relative w-full max-w-6xl tactical-glass border border-tactical-cyan/50 p-6 md:p-8 shadow-[0_0_50px_rgba(34,211,238,0.2)] flex flex-col md:flex-row gap-8 my-auto"
-              >
+          <div className="fixed inset-0 z-[2000] overflow-y-auto custom-scrollbar bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 md:p-8">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-6xl tactical-glass border border-tactical-cyan/50 p-6 md:p-8 shadow-[0_0_50px_rgba(34,211,238,0.2)] flex flex-col md:flex-row gap-8 max-h-[90vh] overflow-y-auto custom-scrollbar my-auto"
+            >
               <div className="flex-1 space-y-6">
                 <div className="flex items-center justify-between border-b border-tactical-border pb-4 mb-6">
                   <div>
@@ -836,9 +839,8 @@ export default function IntelClient({ reports }: IntelClientProps) {
               </div>
             </motion.div>
           </div>
-        </div>
-      )}
-    </AnimatePresence>
-  </div>
-);
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }
