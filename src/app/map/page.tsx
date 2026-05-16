@@ -54,6 +54,7 @@ function MapContent() {
   const [intelStatusFilter, setIntelStatusFilter] = useState("ALL");
   const [viewMode, setViewMode] = useState<'2D' | '3D'>('2D');
   const [targetLocation, setTargetLocation] = useState<{lat: number, lng: number} | undefined>(undefined);
+  const [highlightedLocations, setHighlightedLocations] = useState<any[]>([]);
 
   const menuItems = [
     { name: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/dashboard" },
@@ -79,6 +80,24 @@ function MapContent() {
     getOpsLuarNegeri().then(data => setOpsLuarNegeri(data));
     getLogistics().then(data => setLogistics(data));
   }, []);
+
+  // Fetch all logistics locations when category is LOGISTIK
+  useEffect(() => {
+    if (activeCategory === 'LOGISTIK') {
+      import('@/app/actions').then(actions => {
+        actions.getAllLogisticsLocations().then(data => {
+          const allLocs = [
+            ...(data.units || []).map((u: any) => ({ ...u, type: 'UNIT' })),
+            ...(data.ops_dn || []).map((o: any) => ({ ...o, type: 'DALAM_NEGERI' })),
+            ...(data.ops_ln || []).map((o: any) => ({ ...o, type: 'LUAR_NEGERI' }))
+          ];
+          setHighlightedLocations(allLocs);
+        });
+      });
+    } else if (activeCategory === null) {
+      setHighlightedLocations([]);
+    }
+  }, [activeCategory]);
 
   const aggregatedLogistics = (() => {
     const grouped: Record<string, any> = {};
@@ -134,42 +153,58 @@ function MapContent() {
         <X className="w-4 h-4 group-hover:scale-110 transition-transform" />
       </button>
 
-      {/* Map Content */}
-      <div className="w-full h-full">
-        {viewMode === '2D' ? (
-          <MapComponent 
-            isFullScreen={true} 
-            targetCenter={center} 
-            targetZoom={zoom} 
-            activeCategory={activeCategory} 
-            units={units} 
-            intelReports={intelReports}
-            opsDalamNegeri={opsDalamNegeri}
-            opsLuarNegeri={opsLuarNegeri}
-            searchQuery={searchQuery} 
-            opFilter={opFilter}
-            intelStatusFilter={intelStatusFilter}
-            moveTrigger={moveTrigger}
-            onMarkerClick={(newCenter, newZoom) => {
-              setCenter(newCenter);
-              setZoom(newZoom);
-              setMoveTrigger(prev => prev + 1);
-              setTargetLocation({ lat: newCenter[0], lng: newCenter[1] });
-            }}
-            externalSelectedEntity={extSelectedEntity}
-            externalActiveModal={extActiveModal}
-          />
-        ) : (
-          <GlobeComponent 
-            units={units}
-            intelReports={intelReports}
-            opsDalamNegeri={opsDalamNegeri}
-            opsLuarNegeri={opsLuarNegeri}
-            targetLocation={targetLocation}
-            onMarkerClick={(lat, lng) => {
-              setTargetLocation({ lat, lng });
-            }}
-          />
+      <div className="w-full h-full relative">
+        <MapComponent 
+          isFullScreen={true} 
+          targetCenter={center} 
+          targetZoom={zoom} 
+          activeCategory={activeCategory} 
+          units={units} 
+          intelReports={intelReports}
+          opsDalamNegeri={opsDalamNegeri}
+          opsLuarNegeri={opsLuarNegeri}
+          searchQuery={searchQuery} 
+          opFilter={opFilter}
+          intelStatusFilter={intelStatusFilter}
+          moveTrigger={moveTrigger}
+          onMarkerClick={(newCenter, newZoom) => {
+            setCenter(newCenter);
+            setZoom(newZoom);
+            setMoveTrigger(prev => prev + 1);
+            setTargetLocation({ lat: newCenter[0], lng: newCenter[1] });
+          }}
+          externalSelectedEntity={extSelectedEntity}
+          externalActiveModal={extActiveModal}
+          hideMap={viewMode === '3D'}
+          highlightedLocations={highlightedLocations}
+          setHighlightedLocations={setHighlightedLocations}
+          onMapChange={(c, z) => {
+            setCenter(c);
+            setZoom(z);
+          }}
+        />
+        {viewMode === '3D' && (
+          <div className="absolute inset-0 z-0">
+            <GlobeComponent 
+              units={units}
+              intelReports={intelReports}
+              opsDalamNegeri={opsDalamNegeri}
+              opsLuarNegeri={opsLuarNegeri}
+              targetLocation={targetLocation}
+              onMarkerClick={(lat, lng) => {
+                setTargetLocation({ lat, lng });
+              }}
+              setSelectedEntity={setExtSelectedEntity}
+              setActiveModal={setExtActiveModal}
+              activeCategory={activeCategory}
+              highlightedLocations={highlightedLocations}
+              setHighlightedLocations={setHighlightedLocations}
+              onMapChange={(c, z) => {
+                setCenter(c);
+                setZoom(z);
+              }}
+            />
+          </div>
         )}
       </div>
 
@@ -209,8 +244,6 @@ function MapContent() {
                   setActiveCategory('KESATUAN');
                   setShowDataModal(true);
                   setSearchQuery("");
-                  setCenter([-0.7893, 113.9213]);
-                  setZoom(3);
                   setMoveTrigger(prev => prev + 1);
                 }}
                 className={cn(
@@ -227,8 +260,6 @@ function MapContent() {
                   setActiveCategory('OPERASI');
                   setShowDataModal(true);
                   setSearchQuery("");
-                  setCenter([-0.7893, 113.9213]);
-                  setZoom(3);
                   setMoveTrigger(prev => prev + 1);
                 }}
                 className={cn(
@@ -284,8 +315,6 @@ function MapContent() {
             setActiveCategory('LOGISTIK');
             setShowDataModal(true);
             setSearchQuery("");
-            setCenter([-0.7893, 113.9213]);
-            setZoom(3);
             setMoveTrigger(prev => prev + 1);
           }}
           className={cn(
@@ -302,7 +331,9 @@ function MapContent() {
         <div className="w-full h-[1px] bg-white/10 my-1" />
 
         <button 
-          onClick={() => setViewMode(viewMode === '2D' ? '3D' : '2D')}
+          onClick={() => {
+            setViewMode(viewMode === '2D' ? '3D' : '2D');
+          }}
           className={cn(
             "text-[12px] font-black tracking-[0.1em] px-5 py-2.5 border-2 rounded-md shadow-[0_0_20px_rgba(0,0,0,0.6)] backdrop-blur-md transition-all uppercase flex items-center gap-2",
             viewMode === '3D' 
@@ -368,8 +399,7 @@ function MapContent() {
                   setShowDataModal(false);
                   setActiveCategory(null);
                   setSearchQuery("");
-                  setCenter([-0.7893, 113.9213]);
-                  setZoom(3);
+                  setZoom(5);
                   setMoveTrigger(prev => prev + 1);
                 }} 
                 className="text-tactical-muted hover:text-tactical-red transition-colors"
@@ -529,7 +559,7 @@ function MapContent() {
                           const lng = parseFloat(coords[1]);
                           if (!isNaN(lat) && !isNaN(lng)) {
                             setCenter([lat, lng]);
-                            setZoom(10);
+                            setZoom(13);
                             setMoveTrigger(prev => prev + 1);
                             setTargetLocation({ lat, lng });
                           }
@@ -589,7 +619,7 @@ function MapContent() {
                           const lng = parseFloat(coords[1]);
                           if (!isNaN(lat) && !isNaN(lng)) {
                             setCenter([lat, lng]);
-                            setZoom(10);
+                            setZoom(13);
                             setMoveTrigger(prev => prev + 1);
                             setTargetLocation({ lat, lng });
                           }
@@ -629,7 +659,7 @@ function MapContent() {
                                 const lng = parseFloat(coords[1]);
                                 if (!isNaN(lat) && !isNaN(lng)) {
                                   setCenter([lat, lng]);
-                                  setZoom(15);
+                                  setZoom(13);
                                   setMoveTrigger(prev => prev + 1);
                                   setTargetLocation({ lat, lng });
                                 }
@@ -667,7 +697,7 @@ function MapContent() {
                           const lng = parseFloat(coords[1]);
                           if (!isNaN(lat) && !isNaN(lng)) {
                             setCenter([lat, lng]);
-                            setZoom(10);
+                            setZoom(13);
                             setMoveTrigger(prev => prev + 1);
                             setTargetLocation({ lat, lng });
                           }
@@ -759,6 +789,17 @@ function MapContent() {
                             e.stopPropagation();
                             setExtSelectedEntity({...item, type: 'LOGISTIK', name: item.item_name, quantity: item.total_quantity});
                             setExtActiveModal('LOGISTIK_MAP');
+                            // Fetch specific locations for this item
+                            import('@/app/actions').then(actions => {
+                              actions.getLogisticsDistributionDetails(item.item_name).then(data => {
+                                const allLocs = [
+                                  ...(data.units || []).map((u: any) => ({ ...u, type: 'UNIT' })),
+                                  ...(data.ops_dn || []).map((o: any) => ({ ...o, type: 'DALAM_NEGERI' })),
+                                  ...(data.ops_ln || []).map((o: any) => ({ ...o, type: 'LUAR_NEGERI' }))
+                                ];
+                                setHighlightedLocations(allLocs);
+                              });
+                            });
                           }}
                           className="px-2 py-1 bg-tactical-green/20 border border-tactical-green/40 text-[9px] font-black text-tactical-green rounded hover:bg-tactical-green hover:text-black transition-all whitespace-nowrap"
                         >

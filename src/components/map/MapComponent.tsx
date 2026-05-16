@@ -64,7 +64,7 @@ const createIntelIcon = (threatLevel: string) => {
     className: 'custom-intel-icon',
     html: `<div style="background-color: ${color}; width: ${size}px; height: ${size}px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 20px ${color}; display: flex; align-items: center; justify-content: center; position: relative;">
              ${isCritical ? `<div style="position: absolute; inset: -6px; border: 2px solid ${color}; border-radius: 50%; animation: pulse-high 1.2s infinite;"></div>` : ''}
-             <div style="width: ${size/2.5}px; height: ${size/2.5}px; background-color: white; border-radius: 50%; animation: pulse 1.5s infinite;"></div>
+             <div style="z-index: 2; color: white;"><svg width="${size/1.6}" height="${size/1.6}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0z"/><circle cx="12" cy="12" r="3"/></svg></div>
            </div>`,
     iconSize: [size, size],
     iconAnchor: [size/2, size/2]
@@ -99,7 +99,13 @@ const createUnitIcon = (logoUrl?: string) => {
   });
 };
 
-function MapViewUpdater({ center, zoom, moveTrigger, onZoomEnd }: { center: [number, number], zoom: number, moveTrigger: number, onZoomEnd?: (zoom: number) => void }) {
+function MapViewUpdater({ center, zoom, moveTrigger, onZoomEnd, onMoveEnd }: { 
+  center: [number, number], 
+  zoom: number, 
+  moveTrigger: number, 
+  onZoomEnd?: (zoom: number) => void,
+  onMoveEnd?: (center: [number, number]) => void 
+}) {
   const map = useMap();
   const lastCenterRef = React.useRef<string>("");
   const lastTriggerRef = React.useRef(moveTrigger);
@@ -107,8 +113,9 @@ function MapViewUpdater({ center, zoom, moveTrigger, onZoomEnd }: { center: [num
   useEffect(() => {
     if (!map) return;
     
-    // Only flyTo if moveTrigger has changed
-    if (moveTrigger !== lastTriggerRef.current || lastTriggerRef.current === 0) {
+    // Only flyTo if moveTrigger has changed and is greater than 0
+    // This prevents auto-centering during normal zooming/panning
+    if (moveTrigger > 0 && moveTrigger !== lastTriggerRef.current) {
       map.flyTo(center, zoom, {
         duration: 1.5,
         easeLinearity: 0.25,
@@ -126,6 +133,15 @@ function MapViewUpdater({ center, zoom, moveTrigger, onZoomEnd }: { center: [num
       if (Math.abs(newZoom - zoom) > 0.1 && onZoomEnd) {
         onZoomEnd(newZoom);
       }
+      
+      const newCenter = map.getCenter();
+      if (onMoveEnd) onMoveEnd([newCenter.lat, newCenter.lng]);
+    },
+    moveend() {
+      const newCenter = map.getCenter();
+      const newZoom = map.getZoom();
+      if (onMoveEnd) onMoveEnd([newCenter.lat, newCenter.lng]);
+      if (onZoomEnd) onZoomEnd(newZoom);
     },
     click(e) {
       // If user clicks on empty map space (not caught by marker stopPropagation)
@@ -160,21 +176,27 @@ function MapLibreLayer({ url }: { url: string }) {
 }
 
 function MapEventsHandler({ 
-  onMapClick, 
+  onReset, 
   selectable, 
   onSelectCoordinates 
 }: { 
-  onMapClick: () => void;
+  onReset: (center: [number, number], zoom: number) => void;
   selectable?: boolean;
   onSelectCoordinates?: (coords: [number, number]) => void;
 }) {
+  const map = useMap();
   useMapEvents({
     click(e) {
       if (selectable && onSelectCoordinates) {
         onSelectCoordinates([e.latlng.lat, e.latlng.lng]);
       } else {
-        onMapClick();
+        // Removed auto-reset zoom to 5 on click to prevent unintended zoom out
+        // Just let the map be
       }
+    },
+    popupclose() {
+      // When a popup closes, don't force zoom out to 5
+      // Keep current zoom and center
     }
   });
   return null;
@@ -203,6 +225,10 @@ export default function MapComponent({
   selectable = false,
   onSelectCoordinates,
   className = "",
+  hideMap = false,
+  highlightedLocations = [],
+  setHighlightedLocations = () => {},
+  onMapChange,
 }: {
   isFullScreen?: boolean;
   targetCenter?: [number, number];
@@ -224,9 +250,14 @@ export default function MapComponent({
   selectable?: boolean;
   onSelectCoordinates?: (coords: [number, number]) => void;
   className?: string;
+  hideMap?: boolean;
+  highlightedLocations?: any[];
+  setHighlightedLocations?: (locs: any[]) => void;
+  onMapChange?: (center: [number, number], zoom: number) => void;
 }) {
   const [mounted, setMounted] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(targetZoom);
+  const [currentCenter, setCurrentCenter] = useState<[number, number]>(targetCenter);
   const [selectedEntity, setSelectedEntity] = useState<any>(null);
   const [activeModal, setActiveModal] = useState<'PERSONNEL' | 'KEGIATAN' | 'PERSONNEL_DETAIL' | 'SENJATA' | 'LOGISTIK' | 'SENJATA_DETAIL' | 'LOGISTIK_DETAIL' | 'OPERASI_DETAIL' | 'INTEL' | 'INTEL_DETAIL' | 'UNIT_DETAIL' | 'LOGISTIK_USAGE' | null>(null);
   const [isLogisticsLoading, setIsLogisticsLoading] = useState(false);
@@ -247,7 +278,20 @@ export default function MapComponent({
   const [logisticsDistribution, setLogisticsDistribution] = useState<{kesatuan: number, ops_dn: number, ops_ln: number}>({ kesatuan: 0, ops_dn: 0, ops_ln: 0 });
   const [distributionDetails, setDistributionDetails] = useState<{units: any[], ops_dn: any[], ops_ln: any[]}>({ units: [], ops_dn: [], ops_ln: [] });
   const [activeDistributionTab, setActiveDistributionTab] = useState<'KESATUAN' | 'OPS_DN' | 'OPS_LN'>('KESATUAN');
-  const [highlightedLocations, setHighlightedLocations] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (externalSelectedEntity) {
+      setSelectedEntity(externalSelectedEntity);
+    }
+  }, [externalSelectedEntity]);
+
+  useEffect(() => {
+    if (externalActiveModal) {
+      setActiveModal(externalActiveModal);
+    } else if (externalActiveModal === null && activeModal) {
+      setActiveModal(null);
+    }
+  }, [externalActiveModal]);
   const router = useRouter();
 
   useEffect(() => {
@@ -287,9 +331,9 @@ export default function MapComponent({
         const itemName = externalSelectedEntity.name || externalSelectedEntity.item_name;
         getLogisticsDistributionDetails(itemName).then(data => {
           const allLocs = [
-            ...(data.units || []).map((u: any) => ({ ...u, type: 'UNIT' })),
-            ...(data.ops_dn || []).map((o: any) => ({ ...o, type: 'DALAM_NEGERI' })),
-            ...(data.ops_ln || []).map((o: any) => ({ ...o, type: 'LUAR_NEGERI' }))
+            ...(data.units || []).map((u: any) => ({ ...u, type: 'UNIT', asset_name: itemName })),
+            ...(data.ops_dn || []).map((o: any) => ({ ...o, type: 'DALAM_NEGERI', asset_name: itemName })),
+            ...(data.ops_ln || []).map((o: any) => ({ ...o, type: 'LUAR_NEGERI', asset_name: itemName }))
           ];
           setHighlightedLocations(allLocs);
           setActiveModal(null);
@@ -316,24 +360,9 @@ export default function MapComponent({
   }, [targetZoom]);
 
   useEffect(() => {
-    if (activeCategory === 'LOGISTIK') {
-      setIsLogisticsLoading(true);
-      getAllLogisticsLocations().then(data => {
-        const allLocs = [
-          ...(data.units || []).map((u: any) => ({ ...u, type: 'UNIT' })),
-          ...(data.ops_dn || []).map((o: any) => ({ ...o, type: 'DALAM_NEGERI' })),
-          ...(data.ops_ln || []).map((o: any) => ({ ...o, type: 'LUAR_NEGERI' }))
-        ];
-        setHighlightedLocations(allLocs);
-        setIsLogisticsLoading(false);
-      }).catch(err => {
-        console.error("Failed to fetch logistics locations:", err);
-        setIsLogisticsLoading(false);
-      });
-    } else if (activeCategory === null) {
-      setHighlightedLocations([]);
-    }
-  }, [activeCategory]);
+    setCurrentCenter(targetCenter);
+  }, [targetCenter]);
+
 
   return (
     <div className={cn(
@@ -350,15 +379,6 @@ export default function MapComponent({
       ) : (
         <>
           {/* Overlay UI elements */}
-          <div className="absolute top-4 right-4 z-[400] flex flex-col gap-2 pointer-events-none">
-            <div className="tactical-glass p-3 rounded pointer-events-auto border-tactical-border border">
-              <div className="text-tactical-green font-mono text-xs mb-2">TARGET LOCK</div>
-              <div className="flex items-center gap-2 text-tactical-text text-sm">
-                <Crosshair className="w-4 h-4 text-tactical-red" />
-                Sektor A: Aktif
-              </div>
-            </div>
-          </div>
 
           {isLogisticsLoading && (
             <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1000] bg-orange-500/90 text-black px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse border border-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.4)]">
@@ -366,19 +386,25 @@ export default function MapComponent({
             </div>
           )}
 
-          <MapContainer 
-            center={targetCenter} 
-            zoom={targetZoom} 
-            style={{ height: '100%', width: '100%', backgroundColor: '#f8f9fa' }}
-            zoomControl={showControls}
-            attributionControl={false}
-          >
+          {!hideMap && (
+            <MapContainer 
+              center={targetCenter} 
+              zoom={targetZoom} 
+              style={{ height: '100%', width: '100%', backgroundColor: '#f8f9fa' }}
+              zoomControl={showControls}
+              attributionControl={false}
+            >
         <style>
           {`
             @keyframes pulse {
               0% { transform: scale(0.95); opacity: 0.8; }
               50% { transform: scale(1.05); opacity: 1; }
               100% { transform: scale(0.95); opacity: 0.8; }
+            }
+            @keyframes triangle-blink {
+              0% { transform: scale(1); filter: brightness(1); }
+              50% { transform: scale(1.1); filter: brightness(1.6); }
+              100% { transform: scale(1); filter: brightness(1); }
             }
             @keyframes pulse-high {
               0% { transform: scale(1); opacity: 0.8; }
@@ -425,7 +451,19 @@ export default function MapComponent({
             }
           `}
         </style>
-        <MapViewUpdater center={targetCenter} zoom={currentZoom} moveTrigger={moveTrigger} onZoomEnd={setCurrentZoom} />
+        <MapViewUpdater 
+          center={targetCenter} 
+          zoom={targetZoom} 
+          moveTrigger={moveTrigger} 
+          onZoomEnd={(z) => {
+            setCurrentZoom(z);
+            if (onMapChange) onMapChange(currentCenter, z);
+          }} 
+          onMoveEnd={(c) => {
+            setCurrentCenter(c);
+            if (onMapChange) onMapChange(c, currentZoom);
+          }}
+        />
         <LayersControl position="bottomright">
           <LayersControl.BaseLayer checked name="3D Tactical View (Bldg)">
             <MapLibreLayer url="https://tiles.openfreemap.org/styles/liberty" />
@@ -457,9 +495,9 @@ export default function MapComponent({
           </LayersControl.BaseLayer>
         </LayersControl>
         <MapEventsHandler 
-          onMapClick={() => {
+          onReset={(c, z) => {
             setSelectedEntity(null);
-            if (onMarkerClick) onMarkerClick([-0.7893, 113.9213], 5);
+            if (onMarkerClick) onMarkerClick(c, z);
           }} 
           selectable={selectable}
           onSelectCoordinates={onSelectCoordinates}
@@ -492,18 +530,13 @@ export default function MapComponent({
                     click: (e) => {
                       L.DomEvent.stopPropagation(e);
                       // Use zoom level 15 instead of 18 for better reliability
-                      if (onMarkerClick) onMarkerClick([lat, lng], 15);
+                      if (onMarkerClick) onMarkerClick([lat, lng], 13);
                       setSelectedEntity({ ...unit, pos: [lat, lng], type: 'UNIT' });
                     }
                   }}
                 >
                   <Popup className="tactical-popup" autoPan={false}>
                     <div className="flex flex-col gap-2">
-                      <div className="border-b border-tactical-green/30 pb-2">
-                        <div className="font-bold text-tactical-green text-sm tracking-tight uppercase">{unit.unit_name}</div>
-                        <div className="text-[10px] font-mono text-tactical-muted uppercase">{unit.unit_type || 'KESATUAN'}</div>
-                      </div>
-                      
                       <div className="flex items-start gap-2 bg-tactical-green/5 border border-tactical-green/20 p-2 rounded">
                         <MapPin className="w-3 h-3 text-tactical-green mt-0.5 shrink-0" />
                         <div>
@@ -522,6 +555,15 @@ export default function MapComponent({
                           <div className="text-xs font-bold text-tactical-green uppercase">{unit.status || 'ACTIVE'}</div>
                         </div>
                       </div>
+
+                      <button 
+                        onClick={() => {
+                          setSelectedEntity({ ...unit, pos: [lat, lng], type: 'UNIT' });
+                        }}
+                        className="mt-2 w-full py-2 bg-tactical-green/20 border border-tactical-green/40 text-[10px] font-black text-tactical-green rounded hover:bg-tactical-green hover:text-black transition-all uppercase shadow-[0_0_15px_rgba(34,197,94,0.2)]"
+                      >
+                        INFO KESATUAN
+                      </button>
                     </div>
                   </Popup>
                 </Marker>
@@ -640,7 +682,7 @@ export default function MapComponent({
                     eventHandlers={{
                       click: (e) => {
                         L.DomEvent.stopPropagation(e);
-                        if (onMarkerClick) onMarkerClick([lat, lng], 15);
+                        if (onMarkerClick) onMarkerClick([lat, lng], 13);
                         setSelectedOperation(op);
                         setOpActiveTab('Informasi');
                         setActiveModal('OPERASI_DETAIL');
@@ -685,15 +727,19 @@ export default function MapComponent({
                     position={[lat, lng]} 
                     icon={L.divIcon({
                       className: 'custom-highlight-icon',
-                      html: `<div class="flex items-center justify-center" style="animation: pulse 1.5s infinite;">
-                               <svg width="36" height="32" viewBox="0 0 36 32" style="filter: drop-shadow(0 0 10px ${shadowColor});">
-                                 <path d="M18 2 L34 30 L2 30 Z" fill="${markerColor}" stroke="black" stroke-width="2" stroke-linejoin="round" />
-                                 <circle cx="18" cy="18" r="3" fill="white" opacity="0.4" />
-                               </svg>
+                      html: `<div class="flex items-center justify-center" style="animation: triangle-blink 1.5s infinite;">
+                               <div style="width: 32px; height: 32px; background: ${markerColor}; border: 2px solid black; border-radius: 4px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px ${shadowColor};">
+                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                               </div>
                              </div>`,
-                      iconSize: [48, 48],
-                      iconAnchor: [24, 32]
+                      iconSize: [40, 40],
+                      iconAnchor: [20, 20]
                     })}
+                    eventHandlers={{
+                      click: (e) => {
+                        if (onMarkerClick) onMarkerClick([lat, lng], 13);
+                      }
+                    }}
                   >
                    <Popup className="tactical-popup" minWidth={280}>
                       <div className="font-bold uppercase mb-1" style={{ color: markerColor }}>{loc.name}</div>
@@ -716,7 +762,10 @@ export default function MapComponent({
                            ))}
                          </div>
                        ) : (
-                         <div className="mt-2 text-xs font-black text-white">{selectedAsset?.name || 'LOGISTIK'}: {loc.quantity} Unit</div>
+                         <div className="mt-2 space-y-1">
+                            <div className="text-[11px] font-black text-white uppercase">Logistik : {loc.asset_name || selectedAsset?.name || 'LOGISTIK'}</div>
+                            <div className="text-[11px] font-black text-white uppercase">Jumlah : {loc.quantity} Unit</div>
+                          </div>
                        )}
                    </Popup>
                  </Marker>
@@ -739,7 +788,7 @@ export default function MapComponent({
             icon={customIcon}
             eventHandlers={{
               click: () => {
-                if (onMarkerClick) onMarkerClick(singleMarker, 16);
+                if (onMarkerClick) onMarkerClick(singleMarker, 13);
               }
             }}
           >
@@ -750,6 +799,7 @@ export default function MapComponent({
           </Marker>
         )}
       </MapContainer>
+      )}
 
       {/* Radial Menu Overlay */}
       <AnimatePresence>
@@ -1620,7 +1670,8 @@ export default function MapComponent({
                               </div>
                               <button 
                                 onClick={() => {
-                                  setHighlightedLocations(distributionDetails.units);
+                                  const name = selectedAsset?.name || selectedAsset?.item_name;
+                                  setHighlightedLocations(distributionDetails.units.map((u: any) => ({ ...u, asset_name: name })));
                                   if (distributionDetails.units.length > 0 && distributionDetails.units[0].coordinates) {
                                     const coords = distributionDetails.units[0].coordinates.split(',');
                                     if (onMarkerClick) onMarkerClick([parseFloat(coords[0]), parseFloat(coords[1])], 12);
@@ -1649,7 +1700,8 @@ export default function MapComponent({
                               </div>
                               <button 
                                 onClick={() => {
-                                  setHighlightedLocations(distributionDetails.ops_dn);
+                                  const name = selectedAsset?.name || selectedAsset?.item_name;
+                                  setHighlightedLocations(distributionDetails.ops_dn.map((o: any) => ({ ...o, asset_name: name })));
                                   if (distributionDetails.ops_dn.length > 0 && distributionDetails.ops_dn[0].coordinates) {
                                     const coords = distributionDetails.ops_dn[0].coordinates.split(',');
                                     if (onMarkerClick) onMarkerClick([parseFloat(coords[0]), parseFloat(coords[1])], 12);
@@ -1678,7 +1730,8 @@ export default function MapComponent({
                               </div>
                               <button 
                                 onClick={() => {
-                                  setHighlightedLocations(distributionDetails.ops_ln);
+                                  const name = selectedAsset?.name || selectedAsset?.item_name;
+                                  setHighlightedLocations(distributionDetails.ops_ln.map((o: any) => ({ ...o, asset_name: name })));
                                   if (distributionDetails.ops_ln.length > 0 && distributionDetails.ops_ln[0].coordinates) {
                                     const coords = distributionDetails.ops_ln[0].coordinates.split(',');
                                     if (onMarkerClick) onMarkerClick([parseFloat(coords[0]), parseFloat(coords[1])], 12);

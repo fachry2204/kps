@@ -82,7 +82,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         if (isCollapsed) setOpenMenus({});
       }}
       className={cn(
-        "h-screen fixed top-0 left-0 flex flex-col bg-tactical-panel border-r border-tactical-border z-[1001] transition-all duration-300 shadow-2xl",
+        "h-screen fixed top-0 left-0 flex flex-col bg-tactical-panel border-r border-tactical-border z-[9999] transition-all duration-300 shadow-2xl",
         effectiveCollapsed ? "w-20" : "w-64",
         isHovered && isCollapsed && "border-r-tactical-green shadow-[5px_0_20px_rgba(57,255,20,0.15)]"
       )}

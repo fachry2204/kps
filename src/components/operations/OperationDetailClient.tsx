@@ -12,6 +12,8 @@ import { useState, useEffect } from "react";
 import { deleteOpDalamNegeri, deleteOpLuarNegeri, getLogistics, addOperationAsset, getOperationAssets, deleteOperationAsset, updateOperationAsset, getOperationIntel, addIntelReport, deleteIntelReport, updateIntelReport } from "@/app/actions";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import DocumentUploader from "../common/DocumentUploader";
+import DocumentList from "../common/DocumentList";
 
 const MapComponent = dynamic(() => import("../map/MapComponent"), { 
   ssr: false,
@@ -46,6 +48,7 @@ export default function OperationDetailClient({ id, initialData }: { id: string,
   const [editingIntel, setEditingIntel] = useState<any>(null);
   const [intelDeleteConfirm, setIntelDeleteConfirm] = useState<{show: boolean, id: number, title: string} | null>(null);
   const [intelPage, setIntelPage] = useState(1);
+  const [refreshDocs, setRefreshDocs] = useState(0);
   const intelItemsPerPage = 10;
 
   const handleUpdateIntel = async () => {
@@ -889,6 +892,29 @@ export default function OperationDetailClient({ id, initialData }: { id: string,
             </h3>
             <div className="bg-tactical-bg/50 border border-tactical-border rounded-lg p-4 font-mono text-sm text-tactical-muted leading-relaxed whitespace-pre-wrap">
               {details.objectives}
+            </div>
+          </div>
+
+          {/* Documents Section */}
+          <div className="tactical-glass tactical-border p-6">
+            <h3 className="text-sm font-bold text-tactical-text font-mono flex items-center gap-2 uppercase tracking-tighter border-b border-tactical-border/50 pb-3 mb-6">
+              <FileText className="text-tactical-green" size={18} /> REPOSITORI DOKUMEN OPERASI
+            </h3>
+            
+            <div className="space-y-8">
+              <DocumentUploader 
+                relatedId={Number(id)} 
+                category={pathname.includes('/dalam-negeri/') ? 'OPS_DN' : 'OPS_LN'} 
+                onSuccess={() => setRefreshDocs(prev => prev + 1)} 
+              />
+              
+              <div className="border-t border-tactical-border/30 pt-6">
+                <DocumentList 
+                  relatedId={Number(id)} 
+                  category={pathname.includes('/dalam-negeri/') ? 'OPS_DN' : 'OPS_LN'} 
+                  refreshTrigger={refreshDocs} 
+                />
+              </div>
             </div>
           </div>
 

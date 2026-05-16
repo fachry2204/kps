@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, MapPin, Target, Plus, ArrowLeft, Loader2, Search, User, X, AlertCircle, Crosshair, Package, Trash2 } from "lucide-react";
+import { Shield, MapPin, Target, Plus, ArrowLeft, Loader2, Search, User, X, AlertCircle, Crosshair, Package, Trash2, FileText } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { addOpDalamNegeri, addOpLuarNegeri, searchPersonnel, getPersonnelAssignment, assignPersonnelToOp, addOperationLogistics, getLogistics } from "@/app/actions";
@@ -428,6 +428,18 @@ export default function AddOperationForm({ type }: AddOperationFormProps) {
                         </button>
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                {/* Documents Section Placeholder */}
+                <div className="md:col-span-2 space-y-4 pt-4 border-t border-tactical-border/30">
+                  <h3 className="text-sm font-bold text-tactical-text font-mono uppercase tracking-widest border-b border-tactical-border pb-2 flex items-center gap-2">
+                    <FileText size={16} className="text-tactical-green" /> Lampiran Dokumen Operasi
+                  </h3>
+                  <div className="p-8 bg-tactical-bg/30 border border-dashed border-tactical-border rounded-lg text-center">
+                    <p className="text-xs font-mono text-tactical-muted uppercase">
+                      INITIALIZE DEPLOYMENT TERLEBIH DAHULU UNTUK MENGUPLOAD DOKUMEN TAKTIS, PERINTAH OPERASI, DAN PETA INTELIJEN.
+                    </p>
                   </div>
                 </div>
               </div>

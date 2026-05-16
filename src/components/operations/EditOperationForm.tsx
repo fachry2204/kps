@@ -1,12 +1,14 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, MapPin, Target, ArrowLeft, Loader2, Search, User, X, AlertCircle, Save, Plus, Edit, Package } from "lucide-react";
+import { Shield, MapPin, Target, ArrowLeft, Loader2, Search, User, X, AlertCircle, Save, Plus, Edit, Package, FileText } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { updateOpDalamNegeri, updateOpLuarNegeri, searchPersonnel, getPersonnelAssignment, assignPersonnelToOp, getOpAssignments, getLogistics, addOperationAsset, deleteOperationAsset, getOperationAssets } from "@/app/actions";
 import dynamic from "next/dynamic";
 import { Crosshair } from "lucide-react";
+import DocumentUploader from "../common/DocumentUploader";
+import DocumentList from "../common/DocumentList";
 
 const LocationPicker = dynamic(() => import("../units/LocationPicker"), { 
   ssr: false,
@@ -54,6 +56,7 @@ export default function EditOperationForm({ id, type, initialData }: EditOperati
   const [operationAssets, setOperationAssets] = useState<any[]>([]);
   const [showLogisticsDropdown, setShowLogisticsDropdown] = useState<number | null>(null);
   const [newAsset, setNewAsset] = useState({ asset_name: '', quantity: 1, unit: 'pcs', asset_type: 'SENJATA' as any });
+  const [refreshDocs, setRefreshDocs] = useState(0);
 
   useEffect(() => {
     async function fetchData() {
@@ -464,6 +467,29 @@ export default function EditOperationForm({ id, type, initialData }: EditOperati
                   Belum ada alutsista ditugaskan.
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Documents Management */}
+          <div className="tactical-glass tactical-border p-6 space-y-6">
+            <h3 className="text-sm font-bold text-tactical-text font-mono uppercase tracking-widest border-b border-tactical-border pb-2 flex items-center gap-2">
+              <FileText size={16} className="text-tactical-green" /> Dokumen Penunjang Operasi
+            </h3>
+            
+            <div className="space-y-6">
+              <DocumentUploader 
+                relatedId={Number(id)} 
+                category={type === 'DALAM_NEGERI' ? 'OPS_DN' : 'OPS_LN'} 
+                onSuccess={() => setRefreshDocs(prev => prev + 1)}
+              />
+              
+              <div className="border-t border-tactical-border/30 pt-4">
+                <DocumentList 
+                  relatedId={Number(id)} 
+                  category={type === 'DALAM_NEGERI' ? 'OPS_DN' : 'OPS_LN'} 
+                  refreshTrigger={refreshDocs}
+                />
+              </div>
             </div>
           </div>
 

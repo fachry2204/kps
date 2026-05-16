@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
 import { X, Save, Loader2, Plus, Info } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
+import DocumentUploader from "../common/DocumentUploader";
+import DocumentList from "../common/DocumentList";
 
 const LocationPicker = dynamic(() => import("../units/LocationPicker"), { 
   ssr: false,
@@ -46,6 +48,7 @@ export default function IntelClient({ reports }: IntelClientProps) {
   const itemsPerPage = 20;
   const [dateFilter, setDateFilter] = useState("ALL");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const [refreshDocs, setRefreshDocs] = useState(0);
 
   const resetForm = () => {
     setFormData({ 
@@ -660,9 +663,23 @@ export default function IntelClient({ reports }: IntelClientProps) {
                       placeholder="MASUKKAN PREDIKSI ANCAMAN..."
                     />
                   </div>
+                 <div className="space-y-2 pt-4 border-t border-tactical-border">
+                  <label className="text-[10px] font-mono text-tactical-muted uppercase font-bold">Lampiran Dokumen (Multi-Upload)</label>
+                  {editId ? (
+                    <DocumentUploader 
+                      relatedId={editId} 
+                      category="INTEL" 
+                      onSuccess={() => setRefreshDocs(prev => prev + 1)} 
+                    />
+                  ) : (
+                    <div className="p-4 bg-tactical-bg/50 border border-dashed border-white/10 rounded-lg text-center">
+                      <p className="text-[10px] text-tactical-muted uppercase">Simpan laporan terlebih dahulu untuk mengaktifkan upload dokumen</p>
+                    </div>
+                  )}
                 </div>
+              </div>
 
-                <div className="pt-4 flex justify-end">
+              <div className="pt-4 flex justify-end">
                   <button 
                     type="submit"
                     disabled={isSubmitting}
@@ -767,6 +784,14 @@ export default function IntelClient({ reports }: IntelClientProps) {
                     <div className="w-full bg-tactical-panel/50 border border-tactical-cyan/20 rounded p-3 text-xs text-tactical-cyan font-mono font-bold uppercase flex items-center gap-2">
                        <Activity size={14} /> {selectedReport.operation_name || "OPERASI UMUM / INTERNAL"}
                     </div>
+                  </div>
+                   <div className="space-y-2 pt-4 border-t border-tactical-border">
+                    <label className="text-[10px] font-mono text-tactical-muted uppercase tracking-widest font-bold">Lampiran Dokumen</label>
+                    <DocumentList 
+                      relatedId={selectedReport.id} 
+                      category="INTEL" 
+                      refreshTrigger={refreshDocs} 
+                    />
                   </div>
                 </div>
               </div>

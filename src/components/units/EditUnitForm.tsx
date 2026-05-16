@@ -14,13 +14,16 @@ import {
   Trash2,
   X,
   CheckCircle2,
-  Shield
+  Shield,
+  FileText
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { updateUnit } from "@/app/actions";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import DocumentUploader from "../common/DocumentUploader";
+import DocumentList from "../common/DocumentList";
 
 const LocationPicker = dynamic(() => import("./LocationPicker"), { 
   ssr: false,
@@ -76,6 +79,7 @@ export default function EditUnitForm({ unit, personnel, existingMembers }: EditU
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [memberSearchQuery, setMemberSearchQuery] = useState("");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [refreshDocs, setRefreshDocs] = useState(0);
   const [assignmentWarning, setAssignmentWarning] = useState<{
     person: Person;
     type: 'COMMANDER' | 'MEMBER';
@@ -482,6 +486,29 @@ export default function EditUnitForm({ unit, personnel, existingMembers }: EditU
                   <p className="text-xs font-mono text-tactical-muted">BELUM ADA ANGGOTA DIPILIH</p>
                 </div>
               )}
+            </div>
+
+            {/* Documents Section */}
+            <div className="tactical-glass tactical-border p-6 space-y-4">
+              <h3 className="text-sm font-bold text-tactical-text mb-4 font-mono border-b border-tactical-border pb-2 flex items-center gap-2">
+                <FileText size={16} className="text-tactical-green" /> DOKUMEN TERTUTUP KESATUAN
+              </h3>
+              
+              <div className="space-y-6">
+                <DocumentUploader 
+                  relatedId={unit.id} 
+                  category="UNIT" 
+                  onSuccess={() => setRefreshDocs(prev => prev + 1)}
+                />
+                
+                <div className="border-t border-tactical-border/30 pt-4">
+                  <DocumentList 
+                    relatedId={unit.id} 
+                    category="UNIT" 
+                    refreshTrigger={refreshDocs}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Action Buttons */}

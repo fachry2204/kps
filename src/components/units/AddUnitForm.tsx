@@ -13,7 +13,8 @@ import {
   UserPlus,
   Trash2,
   X,
-  Shield
+  Shield,
+  FileText
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -467,6 +468,18 @@ export default function AddUnitForm({ personnel }: AddUnitFormProps) {
                   <p className="text-xs font-mono text-tactical-muted">BELUM ADA ANGGOTA DIPILIH</p>
                 </div>
               )}
+            </div>
+
+            {/* Documents Section Placeholder */}
+            <div className="tactical-glass tactical-border p-6 space-y-4">
+              <h3 className="text-sm font-bold text-tactical-text mb-4 font-mono border-b border-tactical-border pb-2 flex items-center gap-2">
+                <FileText size={16} className="text-tactical-green" /> LAMPIRAN DOKUMEN
+              </h3>
+              <div className="p-8 bg-tactical-bg/30 border border-dashed border-tactical-border rounded-lg text-center">
+                <p className="text-xs font-mono text-tactical-muted uppercase">
+                  SIMPAN DATA KESATUAN TERLEBIH DAHULU UNTUK MENGAKTIFKAN FITUR UPLOAD DOKUMEN TAKTIS.
+                </p>
+              </div>
             </div>
 
             {/* Action Buttons */}

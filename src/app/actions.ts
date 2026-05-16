@@ -1296,3 +1296,97 @@ export async function getSituationalMonitoring() {
   }
 }
 
+// 13. Document Management Actions
+export async function getDocuments(relatedId: number, category: string) {
+  try {
+    const [rows] = await pool.query(
+      'SELECT * FROM documents WHERE related_id = ? AND category = ? ORDER BY uploaded_at DESC',
+      [relatedId, category]
+    );
+    return rows as any[];
+  } catch (error) {
+    console.error("Get Documents Error:", error);
+    return [];
+  }
+}
+
+export async function deleteDocument(id: number) {
+  try {
+    const [rows]: any = await pool.query('SELECT upload_path FROM documents WHERE id = ?', [id]);
+    if (rows.length > 0) {
+      const filePath = path.join(process.cwd(), 'public', rows[0].upload_path);
+      try {
+        await fs.unlink(filePath);
+      } catch (e) {
+        console.warn("File already deleted from disk or path invalid:", filePath);
+      }
+    }
+    await pool.query('DELETE FROM documents WHERE id = ?', [id]);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Support for Chunked Uploads
+export async function initUpload(data: { fileName: string, category: string }) {
+  try {
+    const tempDir = path.join(process.cwd(), 'public', 'dokumen', 'temp');
+    await fs.mkdir(tempDir, { recursive: true });
+    
+    const uploadId = crypto.randomUUID();
+    const tempFilePath = path.join(tempDir, `${uploadId}-${data.fileName}`);
+    
+    // Create empty file
+    await fs.writeFile(tempFilePath, Buffer.from([]));
+    
+    return { success: true, uploadId, tempPath: tempFilePath };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function uploadChunk(data: { uploadId: string, chunkBase64: string, tempPath: string }) {
+  try {
+    const buffer = Buffer.from(data.chunkBase64, 'base64');
+    await fs.appendFile(data.tempPath, buffer);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function finalizeUpload(data: { 
+  uploadId: string, 
+  tempPath: string, 
+  relatedId: number, 
+  category: string, 
+  originalName: string,
+  fileType: string,
+  fileSize: number
+}) {
+  try {
+    const targetDirName = data.category === 'OPS_DN' ? 'Operasi_DN' : 
+                          data.category === 'OPS_LN' ? 'Operasi_LN' : 
+                          data.category === 'UNIT' ? 'Kesatuan' : 'Intelijen';
+    
+    const targetDir = path.join(process.cwd(), 'public', 'dokumen', targetDirName);
+    await fs.mkdir(targetDir, { recursive: true });
+    
+    const fileName = `${Date.now()}-${data.originalName.replace(/\s+/g, '_')}`;
+    const targetPath = path.join(targetDir, fileName);
+    
+    await fs.rename(data.tempPath, targetPath);
+    
+    const relativePath = `/dokumen/${targetDirName}/${fileName}`;
+    
+    const [result]: any = await pool.query(
+      'INSERT INTO documents (related_id, category, filename, original_name, file_type, file_size, upload_path) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [data.relatedId, data.category, fileName, data.originalName, data.fileType, data.fileSize, relativePath]
+    );
+    
+    return { success: true, id: result.insertId, path: relativePath };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}

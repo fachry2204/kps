@@ -1,10 +1,12 @@
 "use client";
 
-import { Building2, ChevronRight, Shield, Plus, MapPin, X, Users, Target, Search, Edit, Trash2, ArrowRight, Package, Truck, AlertTriangle, MessageSquare, Video } from "lucide-react";
+import { Building2, ChevronRight, Shield, Plus, MapPin, X, Users, Target, Search, Edit, Trash2, ArrowRight, Package, Truck, AlertTriangle, MessageSquare, Video, FileText } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import DocumentList from "../common/DocumentList";
+import DocumentUploader from "../common/DocumentUploader";
 import { getUnitMembers, deleteUnit, getLogisticsByUnit, addLogistics, deleteLogistics } from "@/app/actions";
 import { useRouter } from "next/navigation";
 
@@ -39,8 +41,9 @@ export default function UnitsClient({ units }: UnitsClientProps) {
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [memberSearchQuery, setMemberSearchQuery] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<'PERSONNEL' | 'LOGISTICS'>('PERSONNEL');
+  const [activeTab, setActiveTab] = useState<'PERSONNEL' | 'LOGISTICS' | 'DOCUMENTS'>('PERSONNEL');
   const [unitLogistics, setUnitLogistics] = useState<any[]>([]);
+  const [refreshDocs, setRefreshDocs] = useState(0);
   const [loadingLogistics, setLoadingLogistics] = useState(false);
   const [showAddLogistics, setShowAddLogistics] = useState(false);
   const [newLogistics, setNewLogistics] = useState({
@@ -401,6 +404,12 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                     >
                       <Package size={14} className="inline mr-2" /> LOGISTIK
                     </button>
+                    <button 
+                      onClick={() => setActiveTab('DOCUMENTS')}
+                      className={`px-6 py-2 font-mono text-xs font-bold transition-all ${activeTab === 'DOCUMENTS' ? 'text-tactical-green border-b-2 border-tactical-green bg-tactical-green/5' : 'text-tactical-muted hover:text-tactical-text'}`}
+                    >
+                      <FileText size={14} className="inline mr-2" /> DOKUMEN
+                    </button>
                   </div>
 
                   {activeTab === 'PERSONNEL' ? (
@@ -494,7 +503,7 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                         </table>
                       </div>
                     </div>
-                  ) : (
+                  ) : activeTab === 'LOGISTICS' ? (
                     /* Logistics Section */
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
@@ -623,6 +632,30 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                             )}
                           </tbody>
                         </table>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Documents Section */
+                    <div className="space-y-4">
+                       <div className="flex justify-between items-center">
+                        <h3 className="text-sm font-bold text-tactical-text font-mono flex items-center gap-2">
+                          <FileText size={16} className="text-tactical-green" /> DOKUMEN TAKTIS
+                        </h3>
+                      </div>
+                      
+                      <div className="tactical-glass tactical-border p-6 space-y-6">
+                        <DocumentUploader 
+                          relatedId={activeUnitDetail.id} 
+                          category="UNIT" 
+                          onSuccess={() => setRefreshDocs(prev => prev + 1)}
+                        />
+                        <div className="border-t border-tactical-border pt-6">
+                          <DocumentList 
+                            relatedId={activeUnitDetail.id} 
+                            category="UNIT" 
+                            refreshTrigger={refreshDocs}
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
