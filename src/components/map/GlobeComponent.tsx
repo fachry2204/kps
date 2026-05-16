@@ -93,23 +93,41 @@ export default function GlobeComponent({
         attributionControl: false
       } as any);
 
-      map.current.on('style.load', () => {
-        if (!map.current) return;
-        try {
-          if (typeof (map.current as any).setProjection === 'function') {
-            (map.current as any).setProjection({ type: 'globe' });
-          }
-          if (typeof (map.current as any).setFog === 'function') {
-            (map.current as any).setFog({
-              color: 'rgb(0, 5, 10)',
-              'high-color': 'rgb(16, 185, 129)',
-              'horizon-blend': 0.15,
-              'space-color': 'rgb(0, 0, 0)',
-              'star-intensity': 0.6
+        map.current.on('style.load', () => {
+          if (!map.current) return;
+          try {
+            if (typeof (map.current as any).setProjection === 'function') {
+              (map.current as any).setProjection({ type: 'globe' });
+            }
+            if (typeof (map.current as any).setFog === 'function') {
+              (map.current as any).setFog({
+                color: 'rgb(0, 5, 10)',
+                'high-color': 'rgb(16, 185, 129)',
+                'horizon-blend': 0.15,
+                'space-color': 'rgb(0, 0, 0)',
+                'star-intensity': 0.6
+              });
+            }
+
+            // Add source for intel radius circles
+            map.current.addSource('intel-radius', {
+              type: 'geojson',
+              data: { type: 'FeatureCollection', features: [] }
             });
-          }
-        } catch (e) { console.warn("3D advanced features failed:", e); }
-      });
+
+            map.current.addLayer({
+              id: 'intel-radius-layer',
+              type: 'fill',
+              source: 'intel-radius',
+              paint: {
+                'fill-color': ['get', 'color'],
+                'fill-opacity': 0.15,
+                'fill-outline-color': ['get', 'color']
+              }
+            });
+
+          } catch (e) { console.warn("3D advanced features failed:", e); }
+        });
 
       map.current.on('click', (e) => {
         if (e.originalEvent.defaultPrevented) return;
@@ -178,8 +196,41 @@ export default function GlobeComponent({
           if (setSelectedEntity) setSelectedEntity(data);
           if (setActiveModal) setActiveModal('OPERASI_DETAIL');
         } else if (type === 'INTEL') {
+          const color = getIntelColor(data.threat_level);
+          const content = `
+            <div style="padding: 16px; background: rgba(10, 15, 20, 0.95); border: 2px solid ${color}44; color: white; border-radius: 8px; min-width: 300px; font-family: monospace; position: relative; box-shadow: 0 0 30px rgba(0,0,0,0.5);">
+              <div style="font-weight: 900; color: #ef4444; font-size: 18px; text-transform: uppercase; margin-bottom: 4px;">${data.title}</div>
+              <div style="font-size: 10px; color: #a3a3a3; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">INTELIJEN REPORT</div>
+              
+              <div style="background: ${color}11; border: 1px solid ${color}33; padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+                <div style="font-size: 9px; color: #a3a3a3; text-transform: uppercase; margin-bottom: 4px;">TINGKAT ANCAMAN</div>
+                <div style="font-size: 16px; font-weight: 900; color: ${color}; display: flex; align-items: center; gap: 8px;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  ${data.threat_level}
+                </div>
+              </div>
+
+              <div style="font-size: 12px; font-style: italic; color: #e0e0e0; margin-bottom: 16px; line-height: 1.5;">
+                "${data.content}"
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
+                 <div style="display: flex; align-items: center; gap: 4px; font-size: 10px; color: #a3a3a3;">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="12" r="3"/></svg>
+                    ${data.location_tag}
+                 </div>
+                 <div style="padding: 6px 12px; background: rgba(34, 211, 238, 0.1); border: 1px solid #22d3ee; color: #22d3ee; font-size: 11px; font-weight: 900; border-radius: 4px; cursor: pointer; text-transform: uppercase;">LIHAT DETAIL</div>
+                 <div style="font-size: 10px; color: #a3a3a3;">${new Date(data.created_at).toLocaleDateString()}</div>
+              </div>
+            </div>
+          `;
+
+          new maplibregl.Popup({ offset: 20, closeButton: true, className: 'globe-tactical-popup' })
+            .setLngLat([lng, lat])
+            .setHTML(content)
+            .addTo(map.current!);
+          
           if (setSelectedEntity) setSelectedEntity(data);
-          if (setActiveModal) setActiveModal('INTEL_DETAIL');
         } else if (type === 'HIGHLIGHT') {
           // Logistics highlight click logic - Show Popup
           const color = data.type === 'UNIT' ? '#ff3333' : 
@@ -277,8 +328,7 @@ export default function GlobeComponent({
         const coords = intel.coordinates.replace(/[()]/g, '').split(',').map((c: string) => parseFloat(c.trim()));
         if (coords.length !== 2 || isNaN(coords[0])) return;
 
-        const color = intel.threat_level === 'TINGGI' || intel.threat_level === 'BAHAYA' ? '#ef4444' : 
-                      intel.threat_level === 'MENINGKAT' ? '#f59e0b' : '#10b981';
+        const color = getIntelColor(intel.threat_level);
         
         const el = document.createElement('div');
         el.className = 'globe-marker-container';
@@ -316,7 +366,61 @@ export default function GlobeComponent({
       });
     }
 
+    // --- RADIUS CIRCLES DATA UPDATE ---
+    if (map.current && map.current.getSource('intel-radius')) {
+      const createCircle = (center: [number, number], radiusInKm: number) => {
+        const coords = {
+          latitude: center[0],
+          longitude: center[1]
+        };
+        const km = radiusInKm;
+        const ret = [];
+        const distanceX = km / (111.32 * Math.cos(coords.latitude * Math.PI / 180));
+        const distanceY = km / 110.574;
+
+        let theta, x, y;
+        for (let i = 0; i < 64; i++) {
+          theta = (i / 64) * (2 * Math.PI);
+          x = distanceX * Math.cos(theta);
+          y = distanceY * Math.sin(theta);
+          ret.push([coords.longitude + x, coords.latitude + y]);
+        }
+        ret.push(ret[0]);
+        return [ret];
+      };
+
+      const features = intelReports
+        .filter(intel => intel.coordinates && (!activeCategory || activeCategory === 'INTELIJEN') && highlightedLocations.length === 0)
+        .map(intel => {
+          const coords = intel.coordinates.replace(/[()]/g, '').split(',').map((c: string) => parseFloat(c.trim()));
+          const color = getIntelColor(intel.threat_level);
+          return {
+            type: 'Feature',
+            geometry: {
+              type: 'Polygon',
+              coordinates: createCircle([coords[0], coords[1]], 50) // 50km radius
+            },
+            properties: { color }
+          };
+        });
+
+      (map.current.getSource('intel-radius') as maplibregl.GeoJSONSource).setData({
+        type: 'FeatureCollection',
+        features: features as any
+      });
+    }
+
   }, [units, intelReports, opsDalamNegeri, opsLuarNegeri, onMarkerClick, setSelectedEntity, setActiveModal, activeCategory, highlightedLocations]);
+
+  const getIntelColor = (status: string) => {
+    const s = status?.toUpperCase();
+    if (s === 'STABIL') return '#10b981';
+    if (s === 'TERJAGA') return '#3b82f6';
+    if (s === 'MENINGKAT') return '#f97316';
+    if (s === 'TINGGI') return '#facc15';
+    if (s === 'KRITIS') return '#ef4444';
+    return '#10b981';
+  };
 
   // Handle fly-to targeting
   useEffect(() => {
