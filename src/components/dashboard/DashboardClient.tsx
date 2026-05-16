@@ -117,8 +117,8 @@ export default function DashboardClient({
     <div className="space-y-6">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-2xl font-bold text-tactical-text">COMMAND DASHBOARD & ANALYTICS</h2>
-          <p className="text-tactical-muted font-mono text-sm mt-1">INTEGRATED TACTICAL OVERVIEW</p>
+          <h2 className="text-2xl font-bold text-tactical-text">DASHBOARD KOMANDO & ANALITIK</h2>
+          <p className="text-tactical-muted font-mono text-sm mt-1">TINJAUAN TAKTIS TERINTEGRASI</p>
         </div>
       </div>
 
@@ -140,10 +140,14 @@ export default function DashboardClient({
         />
         <StatCard 
           title="Operasi Berjalan" 
-          value={stats.operations.toString()} 
+          value={(opsDalamNegeri.length + opsLuarNegeri.length).toString()} 
           icon={Crosshair} 
           delay={0.3}
           color="cyan"
+          subStats={[
+            { label: "Operasi Dalam Negeri", value: opsDalamNegeri.length },
+            { label: "Operasi Luar Negeri", value: opsLuarNegeri.length }
+          ]}
         />
         <StatCard 
           title="Laporan Intel" 
@@ -153,7 +157,7 @@ export default function DashboardClient({
           color="red"
         />
         <StatCard 
-          title="Logistik Alert" 
+          title="Peringatan Logistik" 
           value={stats.logisticsAlert.toString()} 
           icon={Package} 
           trend="Stok Rendah" 

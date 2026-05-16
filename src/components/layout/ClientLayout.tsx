@@ -6,6 +6,7 @@ import { Header } from "./Header";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import Preloader from "../common/Preloader";
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -13,7 +14,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const isLoginPage = pathname === '/login';
   
   const [mounted, setMounted] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isNavigating, setIsNavigating] = useState(false);
 
   useEffect(() => {
@@ -25,12 +26,6 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
       router.push("/login");
     }
 
-    // Auto-collapse sidebar on Map page, expand on others
-    if (pathname === '/map') {
-      setIsSidebarCollapsed(true);
-    } else {
-      setIsSidebarCollapsed(false);
-    }
 
     // Trigger navigation loader
     setIsNavigating(true);
@@ -42,19 +37,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   }, [isLoginPage, router, pathname]);
 
   if (!mounted) {
-    return (
-      <div className="min-h-screen bg-tactical-bg flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div className="w-48 h-48 mb-4 relative drop-shadow-[0_0_30px_rgba(204,0,0,0.3)] animate-pulse">
-            <img src="/logo_puskodal.png" alt="Logo" className="w-full h-full object-contain" />
-          </div>
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-12 h-12 border-4 border-tactical-green/20 border-t-tactical-green rounded-full animate-spin" />
-            <p className="text-tactical-green font-mono text-xs animate-pulse tracking-widest uppercase">Initializing Secure Uplink...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <Preloader />;
   }
 
   if (isLoginPage) {
@@ -111,7 +94,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
       {pathname !== '/map' && <Header isSidebarCollapsed={isSidebarCollapsed} />}
       <main className={cn(
         pathname !== '/map' && "pt-16",
-        "min-h-screen transition-all duration-300",
+        "min-h-screen transition-all duration-300 relative",
         isSidebarCollapsed ? "ml-20" : "ml-64"
       )}>
         <div className={cn(pathname !== '/map' && "p-6", "h-full")}>

@@ -61,7 +61,7 @@ export default function DalamNegeriClient({ initialOperations }: { initialOperat
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-lg font-bold text-tactical-text group-hover:text-tactical-green transition-colors">{satgas.name || satgas.operation_name}</h3>
+                  <h3 className="text-sm font-bold text-tactical-text group-hover:text-tactical-green transition-colors leading-tight">{satgas.name || satgas.operation_name}</h3>
                   <div className="flex items-center gap-1.5 text-xs font-mono text-tactical-muted mt-1">
                     <MapPin size={12} className="text-tactical-red" /> {satgas.location}
                   </div>
@@ -72,7 +72,7 @@ export default function DalamNegeriClient({ initialOperations }: { initialOperat
                   )}
                 </div>
                 <span className={`text-[10px] font-bold font-mono px-2 py-1 rounded border ${
-                  satgas.status === 'ACTIVE' 
+                  satgas.status === 'ACTIVE' || satgas.status === 'ONGOING'
                     ? 'bg-tactical-green/10 text-tactical-green border-tactical-green/30' 
                     : satgas.status === 'STANDBY'
                     ? 'bg-tactical-cyan/10 text-tactical-cyan border-tactical-cyan/30'

@@ -7,6 +7,7 @@ import { Video, Users, PhoneOff, ShieldAlert, Key, Server, Globe } from "lucide-
 export default function VconClient() {
   const searchParams = useSearchParams();
   const unitId = searchParams.get('unitId');
+  const opId = searchParams.get('opId');
   
   const [roomName, setRoomName] = useState("Kopassus-CommandCenter-Secure");
   const [isJoined, setIsJoined] = useState(false);
@@ -14,13 +15,13 @@ export default function VconClient() {
   const [isPrivateServer, setIsPrivateServer] = useState(false);
 
   useEffect(() => {
-    if (unitId) {
-      const targetRoom = `KPS-UNIT-${unitId}`;
+    if (unitId || opId) {
+      const targetRoom = unitId ? `KPS-UNIT-${unitId}` : `KPS-OPS-${opId}`;
       setRoomName(targetRoom);
       setInputRoom(targetRoom);
       setIsJoined(true);
     }
-  }, [unitId]);
+  }, [unitId, opId]);
 
   // Private server placeholder (will be used when they deploy their own Jitsi instance)
   const serverUrl = isPrivateServer ? "https://vcon.kopassus.local/" : "https://meet.ffmuc.net/";
@@ -47,7 +48,13 @@ export default function VconClient() {
   };
 
   return (
-    <div className={isJoined ? "fixed inset-0 z-[100] bg-tactical-bg flex flex-col" : "h-[calc(100vh-7rem)] flex flex-col gap-4"}>
+    <div 
+      className={isJoined ? "fixed inset-0 z-[100] bg-tactical-bg flex flex-col transition-all duration-300" : "h-[calc(100vh-7rem)] flex flex-col gap-4 transition-all duration-300"}
+      style={isJoined ? { 
+        left: 'var(--sidebar-width, 256px)', 
+        width: 'calc(100vw - var(--sidebar-width, 256px))' 
+      } : {}}
+    >
       {/* Header Info */}
       <div className={isJoined ? "hidden" : "flex items-center justify-between bg-tactical-panel border border-tactical-border rounded-lg p-4 tactical-glass shrink-0 shadow-lg"}>
         <div className="flex items-center gap-4">

@@ -105,7 +105,7 @@ export function Header({ isSidebarCollapsed }: HeaderProps) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tactical-muted" />
           <input 
             type="text" 
-            placeholder="Search operation, personnel, or intel..." 
+            placeholder="Cari operasi, personil, atau intelijen..." 
             className="w-full bg-tactical-bg border border-tactical-border rounded-md pl-10 pr-4 py-2 text-sm text-tactical-text placeholder:text-tactical-muted focus:outline-none focus:border-tactical-green focus:ring-1 focus:ring-tactical-green/50 transition-all"
           />
         </div>
@@ -164,14 +164,14 @@ export function Header({ isSidebarCollapsed }: HeaderProps) {
             {isNotifOpen && (
               <div className="absolute right-0 mt-2 w-80 bg-tactical-bg border border-tactical-border rounded shadow-lg z-50 overflow-hidden">
                 <div className="p-3 border-b border-tactical-border bg-tactical-panel flex justify-between items-center">
-                  <h3 className="font-bold text-tactical-text text-sm">NOTIFICATIONS</h3>
+                  <h3 className="font-bold text-tactical-text text-sm">NOTIFIKASI</h3>
                   {unreadCount > 0 && (
-                    <span className="text-[10px] bg-tactical-red text-white px-2 py-0.5 rounded-full font-mono">{unreadCount} UNREAD</span>
+                    <span className="text-[10px] bg-tactical-red text-white px-2 py-0.5 rounded-full font-mono">{unreadCount} BELUM DIBACA</span>
                   )}
                 </div>
                 <div className="max-h-80 overflow-y-auto">
                   {notifications.length === 0 ? (
-                    <div className="p-4 text-center text-sm text-tactical-muted">No notifications.</div>
+                    <div className="p-4 text-center text-sm text-tactical-muted">Tidak ada notifikasi.</div>
                   ) : (
                     notifications.map(notif => (
                       <div 
@@ -211,7 +211,7 @@ export function Header({ isSidebarCollapsed }: HeaderProps) {
               <div className="absolute right-0 mt-2 w-56 bg-tactical-bg border border-tactical-border rounded shadow-lg py-0 z-50 overflow-hidden">
                 <div className="px-4 py-3 bg-tactical-panel border-b border-tactical-border">
                   <div className="text-sm font-bold text-tactical-text">Administrator</div>
-                  <div className="text-[10px] text-tactical-green font-mono uppercase tracking-widest mt-0.5">COMMANDER</div>
+                  <div className="text-[10px] text-tactical-green font-mono uppercase tracking-widest mt-0.5">KOMANDAN</div>
                 </div>
                 <div className="py-1">
                   <Link 
@@ -230,7 +230,7 @@ export function Header({ isSidebarCollapsed }: HeaderProps) {
           {/* Separate Logout Button */}
           <button 
             onClick={handleLogout}
-            title="Logout"
+            title="Keluar"
             className="ml-2 p-2 rounded bg-tactical-red/10 border border-tactical-red/30 text-tactical-red hover:bg-tactical-red hover:text-tactical-bg transition-colors flex items-center justify-center"
           >
             <LogOut className="w-5 h-5" />

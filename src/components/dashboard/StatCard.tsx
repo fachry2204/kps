@@ -12,6 +12,7 @@ interface StatCardProps {
   trendUp?: boolean;
   color?: "green" | "red" | "cyan" | "muted" | "yellow";
   delay?: number;
+  subStats?: Array<{ label: string; value: number | string }>;
 }
 
 export function StatCard({ 
@@ -21,7 +22,8 @@ export function StatCard({
   trend, 
   trendUp, 
   color = "green",
-  delay = 0 
+  delay = 0,
+  subStats
 }: StatCardProps) {
   
   const colorMap = {
@@ -59,6 +61,20 @@ export function StatCard({
             {trendUp ? "↑" : "↓"} {trend}
           </span>
           <span className="text-tactical-muted">vs last week</span>
+        </div>
+      )}
+
+      {subStats && (
+        <div className="mt-4 pt-3 border-t border-tactical-border/30 space-y-1.5">
+           {subStats.map((s, i) => (
+             <div key={i} className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                   <div className="w-1 h-1 rounded-full bg-tactical-cyan/60"></div>
+                   <div className="text-[9px] font-black text-tactical-muted uppercase tracking-tight">{s.label}</div>
+                </div>
+                <div className="text-[10px] font-black text-tactical-cyan">{s.value}</div>
+             </div>
+           ))}
         </div>
       )}
 

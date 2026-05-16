@@ -3,7 +3,8 @@
 import { 
   ChevronLeft, User, Shield, Crosshair, Clock, Award, 
   FileText, GraduationCap, Globe, Landmark, Edit, Trash2,
-  Calendar, MapPin, Hash, Briefcase, Activity, Heart, BookOpen
+  Calendar, MapPin, Hash, Briefcase, Activity, Heart, BookOpen,
+  MessageSquare, Video, Phone
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -112,7 +113,7 @@ export default function PersonnelProfile({
           <div className="absolute -inset-2 bg-gradient-to-r from-tactical-green to-tactical-cyan rounded-lg opacity-20 group-hover:opacity-40 transition-all blur-lg"></div>
           <div className="w-44 h-56 bg-tactical-bg border-2 border-tactical-border rounded-lg overflow-hidden relative flex items-center justify-center shadow-2xl">
             {personnel.photo_url ? (
-              <Image src={personnel.photo_url} alt={personnel.name} fill className="object-cover grayscale hover:grayscale-0 transition-all duration-700" />
+              <Image src={personnel.photo_url} alt={personnel.name} fill className="object-cover invert grayscale contrast-125 brightness-110 opacity-80 hover:opacity-100 transition-all duration-700" />
             ) : (
               <User size={80} className="text-tactical-muted opacity-30" />
             )}
@@ -126,52 +127,78 @@ export default function PersonnelProfile({
         </div>
         
         <div className="flex-1 space-y-6 z-10">
-          <div className="text-center md:text-left">
-            <div className="flex flex-wrap items-center gap-4 mb-1">
-              <h3 className="text-2xl font-black text-tactical-text uppercase tracking-tight drop-shadow-sm leading-none">{personnel.name}</h3>
-              <span className={`text-[9px] font-bold px-3 py-1 rounded border leading-none uppercase ${
-                personnel.status === 'ACTIVE' ? 'bg-tactical-green/10 border-tactical-green/50 text-tactical-green' : 
-                personnel.status === 'ON_MISSION' ? 'bg-tactical-cyan/10 border-tactical-cyan/50 text-tactical-cyan' :
-                'bg-yellow-500/10 border-yellow-500/50 text-yellow-500'
-              }`}>
-                {personnel.status === 'ACTIVE' ? 'Aktif' : 
-                 personnel.status === 'ON_MISSION' ? 'Tugas Luar' :
-                 personnel.status === 'ON_LEAVE' ? 'Cuti' : personnel.status}
-              </span>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-1">
+              <div>
+                <div className="flex flex-wrap items-center gap-4 mb-1">
+                  <h3 className="text-2xl font-black text-tactical-text uppercase tracking-tight drop-shadow-sm leading-none">{personnel.name}</h3>
+                  <span className={`text-[9px] font-bold px-3 py-1 rounded border leading-none uppercase ${
+                    personnel.status === 'ACTIVE' ? 'bg-tactical-green/10 border-tactical-green/50 text-tactical-green' : 
+                    personnel.status === 'ON_MISSION' ? 'bg-tactical-cyan/10 border-tactical-cyan/50 text-tactical-cyan' :
+                    'bg-yellow-500/10 border-yellow-500/50 text-yellow-500'
+                  }`}>
+                    {personnel.status === 'ACTIVE' ? 'Aktif' : 
+                    personnel.status === 'ON_MISSION' ? 'Tugas Luar' :
+                    personnel.status === 'ON_LEAVE' ? 'Cuti' : personnel.status}
+                  </span>
+                </div>
+                <p className="text-tactical-cyan font-mono text-base tracking-[0.2em] bg-tactical-cyan/5 inline-block px-3 py-0.5 rounded border border-tactical-cyan/20">{personnel.nrp}</p>
+              </div>
+
+              {/* Communication Buttons */}
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/komunikasi/chat?id=${personnel.id}`}>
+                  <button className="flex items-center gap-2 px-4 py-2 bg-tactical-green/10 border border-tactical-green/30 text-tactical-green text-[10px] font-bold font-mono rounded hover:bg-tactical-green hover:text-tactical-bg transition-all uppercase tracking-widest">
+                    <MessageSquare size={14} /> Chat Personil
+                  </button>
+                </Link>
+                <Link href={`/komunikasi/vcon?id=${personnel.id}`}>
+                  <button className="flex items-center gap-2 px-4 py-2 bg-tactical-cyan/10 border border-tactical-cyan/30 text-tactical-cyan text-[10px] font-bold font-mono rounded hover:bg-tactical-cyan hover:text-tactical-bg transition-all uppercase tracking-widest">
+                    <Video size={14} /> Vcon Personil
+                  </button>
+                </Link>
+                {personnel.phone_number && (
+                  <a 
+                    href={`https://wa.me/${personnel.phone_number.replace(/\D/g, '')}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/30 text-green-500 text-[10px] font-bold font-mono rounded hover:bg-green-500 hover:text-white transition-all uppercase tracking-widest"
+                  >
+                    <Phone size={14} /> WhatsApp
+                  </a>
+                )}
+              </div>
             </div>
-            <p className="text-tactical-cyan font-mono text-base tracking-[0.2em] bg-tactical-cyan/5 inline-block px-3 py-0.5 rounded border border-tactical-cyan/20">{personnel.nrp}</p>
-          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Top Left: Kesatuan */}
-            <div className="flex items-center gap-3 p-3 bg-tactical-panel/40 rounded-lg border border-tactical-border/50">
-              <div className="p-2 bg-tactical-bg rounded border border-tactical-border">
-                <Landmark size={16} className="text-tactical-muted" />
+            <div className="flex items-center gap-3 p-3 bg-tactical-green/10 rounded-lg border border-tactical-green/30 shadow-[0_0_15px_rgba(57,255,20,0.05)] transition-all hover:bg-tactical-green/20">
+              <div className="p-2 bg-tactical-green/20 rounded border border-tactical-green/40 shadow-[0_0_10px_rgba(57,255,20,0.1)]">
+                <Landmark size={16} className="text-tactical-green" />
               </div>
               <div>
-                <div className="text-[10px] font-mono text-tactical-muted uppercase tracking-widest mb-0.5">Kesatuan</div>
+                <div className="text-[10px] font-mono text-tactical-green/70 uppercase tracking-widest mb-0.5 font-bold">Kesatuan</div>
                 <div className="text-xs font-bold text-tactical-text uppercase leading-none">{personnel.unit_name || 'TANPA UNIT'}</div>
               </div>
             </div>
             
             {/* Top Right: Satgas */}
-            <div className="flex items-center gap-3 p-3 bg-tactical-panel/40 rounded-lg border border-tactical-border/50">
-              <div className="p-2 bg-tactical-bg rounded border border-tactical-border">
-                <Shield size={16} className="text-tactical-muted" />
+            <div className="flex items-center gap-3 p-3 bg-tactical-cyan/10 rounded-lg border border-tactical-cyan/30 shadow-[0_0_15px_rgba(0,255,255,0.05)] transition-all hover:bg-tactical-cyan/20">
+              <div className="p-2 bg-tactical-cyan/20 rounded border border-tactical-cyan/40 shadow-[0_0_10px_rgba(0,255,255,0.1)]">
+                <Shield size={16} className="text-tactical-cyan" />
               </div>
               <div>
-                <div className="text-[10px] font-mono text-tactical-muted uppercase tracking-widest mb-0.5">Satgas (Gelar Operasi)</div>
+                <div className="text-[10px] font-mono text-tactical-cyan/70 uppercase tracking-widest mb-0.5 font-bold">Satgas (Gelar Operasi)</div>
                 <div className="text-xs font-bold text-tactical-text uppercase leading-none">{personnel.satgas_name || '-'}</div>
               </div>
             </div>
 
             {/* Bottom Left: Spesialisasi */}
-            <div className="flex items-center gap-3 p-3 bg-tactical-panel/40 rounded-lg border border-tactical-border/50">
-              <div className="p-2 bg-tactical-bg rounded border border-tactical-border">
-                <Activity size={16} className="text-tactical-muted" />
+            <div className="flex items-center gap-3 p-3 bg-tactical-green/10 rounded-lg border border-tactical-green/30 shadow-[0_0_15px_rgba(57,255,20,0.05)] transition-all hover:bg-tactical-green/20">
+              <div className="p-2 bg-tactical-green/20 rounded border border-tactical-green/40 shadow-[0_0_10px_rgba(57,255,20,0.1)]">
+                <Activity size={16} className="text-tactical-green" />
               </div>
               <div>
-                <div className="text-[10px] font-mono text-tactical-muted uppercase tracking-widest mb-0.5">Spesialisasi</div>
+                <div className="text-[10px] font-mono text-tactical-green/70 uppercase tracking-widest mb-0.5 font-bold">Spesialisasi</div>
                 <div className="text-xs font-bold text-tactical-text uppercase leading-none">{personnel.specialization || 'N/A'}</div>
               </div>
             </div>

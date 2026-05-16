@@ -4,7 +4,9 @@ import React, { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Circle, LayersControl, LayerGroup, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { Crosshair, ShieldAlert, Plus, Minus, MapPin, Truck, Users, Target, ClipboardList, X, ChevronLeft, ChevronRight, Search, Radio, MessageSquare, Video } from "lucide-react";
+import { Building2, Building, Shield, Crosshair, Users, Activity, Package, MapPin, Search, ChevronRight, ChevronLeft, X, Clock, AlertTriangle, Eye, Target, ClipboardList, Truck, MessageSquare, Video, Minus, Plus, Database } from "lucide-react";
+import { getOpAssignments, getOperationAssets, getLogistics, getUnitMembers, getLogisticsByUnit, getUnitActivities, getLogisticsDistribution, getLogisticsDistributionDetails, getAllLogisticsLocations } from "@/app/actions";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -26,16 +28,43 @@ const tacticalIcon = new L.DivIcon({
   iconAnchor: [6, 6]
 });
 
+const getIntelColor = (threatLevel: string) => {
+  switch (threatLevel?.toUpperCase()) {
+    case 'STABIL': return '#10b981';
+    case 'TERJAGA': return '#3b82f6';
+    case 'MENINGKAT': return '#f59e0b';
+    case 'TINGGI': return '#f97316';
+    case 'KRITIS':
+    case 'HIGH':
+    case 'SEVERE': return '#ef4444';
+    default: return '#ef4444';
+  }
+};
+
 const createIntelIcon = (threatLevel: string) => {
-  const isHigh = threatLevel === 'HIGH' || threatLevel === 'SEVERE';
+  const color = getIntelColor(threatLevel);
+  let size = 28;
+  
+  switch (threatLevel?.toUpperCase()) {
+    case 'STABIL': size = 20; break;
+    case 'TERJAGA': size = 22; break;
+    case 'MENINGKAT': size = 24; break;
+    case 'TINGGI': size = 26; break;
+    case 'KRITIS':
+    case 'HIGH':
+    case 'SEVERE': size = 30; break;
+  }
+
+  const isCritical = threatLevel === 'KRITIS' || threatLevel === 'HIGH' || threatLevel === 'SEVERE' || threatLevel === 'TINGGI';
+
   return new L.DivIcon({
     className: 'custom-intel-icon',
-    html: `<div style="background-color: #ff3333; width: ${isHigh ? '20px' : '16px'}; height: ${isHigh ? '20px' : '16px'}; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 15px #ff3333; display: flex; align-items: center; justify-content: center; position: relative;">
-             ${isHigh ? `<div style="position: absolute; inset: -4px; border: 2px solid #ff3333; border-radius: 50%; animation: pulse-high 0.8s infinite;"></div>` : ''}
-             <div style="width: ${isHigh ? '10px' : '8px'}; height: ${isHigh ? '10px' : '8px'}; background-color: white; border-radius: 50%; animation: pulse 1s infinite;"></div>
+    html: `<div style="background-color: ${color}; width: ${size}px; height: ${size}px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 20px ${color}; display: flex; align-items: center; justify-content: center; position: relative;">
+             ${isCritical ? `<div style="position: absolute; inset: -6px; border: 2px solid ${color}; border-radius: 50%; animation: pulse-high 1.2s infinite;"></div>` : ''}
+             <div style="width: ${size/2.5}px; height: ${size/2.5}px; background-color: white; border-radius: 50%; animation: pulse 1.5s infinite;"></div>
            </div>`,
-    iconSize: isHigh ? [20, 20] : [16, 16],
-    iconAnchor: isHigh ? [10, 10] : [8, 8]
+    iconSize: [size, size],
+    iconAnchor: [size/2, size/2]
   });
 };
 
@@ -62,40 +91,33 @@ const createUnitIcon = (logoUrl?: string) => {
   });
 };
 
-function MapViewUpdater({ center, zoom, onZoomEnd }: { center: [number, number], zoom: number, onZoomEnd?: (zoom: number) => void }) {
+function MapViewUpdater({ center, zoom, moveTrigger, onZoomEnd }: { center: [number, number], zoom: number, moveTrigger: number, onZoomEnd?: (zoom: number) => void }) {
   const map = useMap();
-  const lastCenterRef = React.useRef<string>(JSON.stringify(center));
-  const lastZoomRef = React.useRef<number>(zoom);
-  
+  const lastCenterRef = React.useRef<string>("");
+  const lastTriggerRef = React.useRef(moveTrigger);
+
   useEffect(() => {
-    const currentCenterStr = JSON.stringify(center);
-    const centerChanged = currentCenterStr !== lastCenterRef.current;
-    const zoomChanged = zoom !== lastZoomRef.current;
+    if (!map) return;
     
-    // IF CENTER PROP CHANGED: Explicitly fly to the new target location (Marker Click)
-    if (centerChanged) {
-      map.flyTo(center, zoom, { 
-        duration: 1.5, // Fast and responsive for direct navigation
+    // Only flyTo if moveTrigger has changed
+    if (moveTrigger !== lastTriggerRef.current || lastTriggerRef.current === 0) {
+      map.flyTo(center, zoom, {
+        duration: 1.5,
         easeLinearity: 0.25,
         animate: true
       });
-      lastCenterRef.current = currentCenterStr;
-      lastZoomRef.current = zoom;
-    } 
-    // IF ONLY ZOOM CHANGED: Zoom into current view (Slider/Manual Zoom)
-    else if (zoomChanged) {
-      map.flyTo(map.getCenter(), zoom, {
-        duration: 0.5,
-        animate: true
-      });
-      lastZoomRef.current = zoom;
+      lastTriggerRef.current = moveTrigger;
     }
-  }, [center, zoom, map]);
+  }, [moveTrigger, center, zoom, map]);
 
 
   useMapEvents({
     zoomend() {
-      if (onZoomEnd) onZoomEnd(map.getZoom());
+      // Still update external zoom for UI sync, but carefully
+      const newZoom = map.getZoom();
+      if (Math.abs(newZoom - zoom) > 0.1 && onZoomEnd) {
+        onZoomEnd(newZoom);
+      }
     },
     click(e) {
       // If user clicks on empty map space (not caught by marker stopPropagation)
@@ -120,7 +142,7 @@ function MapEventsHandler({ onMapClick }: { onMapClick: () => void }) {
 
 // Removed ZoomController to prevent conflicts with flyTo
 
-export default function MapComponent({ 
+export default function MapComponent({
   isFullScreen = false,
   targetCenter = [-0.7893, 113.9213],
   targetZoom = 5,
@@ -130,9 +152,14 @@ export default function MapComponent({
   opsDalamNegeri = [],
   opsLuarNegeri = [],
   searchQuery = "",
+  opFilter = "ALL",
+  intelStatusFilter = "ALL",
   singleMarker = null,
-  onMarkerClick
-}: { 
+  onMarkerClick,
+  externalSelectedEntity,
+  externalActiveModal,
+  moveTrigger = 0,
+}: {
   isFullScreen?: boolean;
   targetCenter?: [number, number];
   targetZoom?: number;
@@ -142,28 +169,109 @@ export default function MapComponent({
   opsDalamNegeri?: any[];
   opsLuarNegeri?: any[];
   searchQuery?: string;
+  opFilter?: string;
+  intelStatusFilter?: string;
   singleMarker?: [number, number] | null;
   onMarkerClick?: (center: [number, number], zoom: number) => void;
+  externalSelectedEntity?: any;
+  externalActiveModal?: any;
+  moveTrigger?: number;
 }) {
   const [mounted, setMounted] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(targetZoom);
   const [selectedEntity, setSelectedEntity] = useState<any>(null);
-  const [activeModal, setActiveModal] = useState<'PERSONNEL' | 'KEGIATAN' | 'PERSONNEL_DETAIL' | 'SENJATA' | 'ALUTSISTA' | 'SENJATA_DETAIL' | 'ALUTSISTA_DETAIL' | 'OPERASI_DETAIL' | null>(null);
+  const [activeModal, setActiveModal] = useState<'PERSONNEL' | 'KEGIATAN' | 'PERSONNEL_DETAIL' | 'SENJATA' | 'LOGISTIK' | 'SENJATA_DETAIL' | 'LOGISTIK_DETAIL' | 'OPERASI_DETAIL' | 'INTEL' | 'INTEL_DETAIL' | 'UNIT_DETAIL' | 'LOGISTIK_USAGE' | null>(null);
+  const [isLogisticsLoading, setIsLogisticsLoading] = useState(false);
   const [selectedPersonnel, setSelectedPersonnel] = useState<any>(null);
   const [selectedWeapon, setSelectedWeapon] = useState<any>(null);
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [selectedOperation, setSelectedOperation] = useState<any>(null);
   const [modalSearchQuery, setModalSearchQuery] = useState('');
   const [opActiveTab, setOpActiveTab] = useState('Informasi');
-  const [detailReturnModal, setDetailReturnModal] = useState<'PERSONNEL' | 'SENJATA' | 'ALUTSISTA' | 'OPERASI_DETAIL' | null>(null);
+  const [detailReturnModal, setDetailReturnModal] = useState<'PERSONNEL' | 'KEGIATAN' | 'PERSONNEL_DETAIL' | 'SENJATA' | 'LOGISTIK' | 'SENJATA_DETAIL' | 'LOGISTIK_DETAIL' | 'OPERASI_DETAIL' | 'INTEL' | 'INTEL_DETAIL' | 'UNIT_DETAIL' | 'LOGISTIK_USAGE' | null>(null);
+  const [opAssignments, setOpAssignments] = useState<any[]>([]);
+  const [opAssets, setOpAssets] = useState<any[]>([]);
+  const [allLogistics, setAllLogistics] = useState<any[]>([]);
+  const [unitPersonnel, setUnitPersonnel] = useState<any[]>([]);
+  const [unitLogistics, setUnitLogistics] = useState<any[]>([]);
+  const [unitActivities, setUnitActivities] = useState<any[]>([]);
+  const [selectedIntel, setSelectedIntel] = useState<any>(null);
+  const [logisticsDistribution, setLogisticsDistribution] = useState<{kesatuan: number, ops_dn: number, ops_ln: number}>({ kesatuan: 0, ops_dn: 0, ops_ln: 0 });
+  const [distributionDetails, setDistributionDetails] = useState<{units: any[], ops_dn: any[], ops_ln: any[]}>({ units: [], ops_dn: [], ops_ln: [] });
+  const [activeDistributionTab, setActiveDistributionTab] = useState<'KESATUAN' | 'OPS_DN' | 'OPS_LN'>('KESATUAN');
+  const [highlightedLocations, setHighlightedLocations] = useState<any[]>([]);
+  const router = useRouter();
 
   useEffect(() => {
     setMounted(true);
+    getLogistics().then(data => setAllLogistics(data));
   }, []);
+
+  useEffect(() => {
+    if (selectedOperation) {
+      const type = selectedOperation.category === 'DN' ? 'DALAM_NEGERI' : 'LUAR_NEGERI';
+      getOpAssignments(selectedOperation.id, type).then(data => setOpAssignments(data));
+      getOperationAssets(selectedOperation.id, type).then(data => setOpAssets(data));
+    }
+  }, [selectedOperation]);
+
+  useEffect(() => {
+    if (selectedEntity && selectedEntity.type === 'UNIT') {
+      getUnitMembers(selectedEntity.id).then(data => setUnitPersonnel(data));
+      getLogisticsByUnit(selectedEntity.id).then(data => setUnitLogistics(data));
+      getUnitActivities(selectedEntity.id).then(data => setUnitActivities(data));
+    }
+  }, [selectedEntity]);
+
+  useEffect(() => {
+    if (activeModal === 'LOGISTIK_DETAIL' && selectedAsset) {
+      const itemName = selectedAsset.name || selectedAsset.item_name;
+      if (itemName) {
+        getLogisticsDistribution(itemName).then(data => setLogisticsDistribution(data));
+        getLogisticsDistributionDetails(itemName).then(data => setDistributionDetails(data));
+      }
+    }
+  }, [selectedAsset, activeModal]);
+
+  useEffect(() => {
+    if (externalActiveModal) {
+      setActiveModal(externalActiveModal);
+      if (externalSelectedEntity) {
+        if (externalActiveModal === 'OPERASI_DETAIL') setSelectedOperation(externalSelectedEntity);
+        if (externalActiveModal === 'INTEL_DETAIL') setSelectedIntel(externalSelectedEntity);
+        if (externalActiveModal === 'LOGISTIK_DETAIL') setSelectedAsset(externalSelectedEntity);
+      }
+    } else if (externalSelectedEntity && externalSelectedEntity.type === 'UNIT') {
+      // If we have an external selected entity but NO active modal, 
+      // it means we want to show the radial menu for this unit
+      setSelectedEntity(externalSelectedEntity);
+      setActiveModal(null);
+    }
+  }, [externalActiveModal, externalSelectedEntity]);
 
   useEffect(() => {
     setCurrentZoom(targetZoom);
   }, [targetZoom]);
+
+  useEffect(() => {
+    if (activeCategory === 'LOGISTIK') {
+      setIsLogisticsLoading(true);
+      getAllLogisticsLocations().then(data => {
+        const allLocs = [
+          ...(data.units || []).map((u: any) => ({ ...u, type: 'UNIT' })),
+          ...(data.ops_dn || []).map((o: any) => ({ ...o, type: 'DALAM_NEGERI' })),
+          ...(data.ops_ln || []).map((o: any) => ({ ...o, type: 'LUAR_NEGERI' }))
+        ];
+        setHighlightedLocations(allLocs);
+        setIsLogisticsLoading(false);
+      }).catch(err => {
+        console.error("Failed to fetch logistics locations:", err);
+        setIsLogisticsLoading(false);
+      });
+    } else if (activeCategory === null) {
+      setHighlightedLocations([]);
+    }
+  }, [activeCategory]);
 
   return (
     <div className={cn(
@@ -188,6 +296,12 @@ export default function MapComponent({
               </div>
             </div>
           </div>
+
+          {isLogisticsLoading && (
+            <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1000] bg-orange-500/90 text-black px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse border border-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.4)]">
+              MENGAMBIL DATA SEBARAN LOGISTIK GLOBAL...
+            </div>
+          )}
 
           <MapContainer 
             center={targetCenter} 
@@ -248,7 +362,7 @@ export default function MapComponent({
             }
           `}
         </style>
-        <MapViewUpdater center={targetCenter} zoom={currentZoom} onZoomEnd={setCurrentZoom} />
+        <MapViewUpdater center={targetCenter} zoom={currentZoom} moveTrigger={moveTrigger} onZoomEnd={setCurrentZoom} />
         <LayersControl position="bottomright">
           <LayersControl.BaseLayer checked name="Google Maps Roadmap">
             <TileLayer
@@ -344,10 +458,12 @@ export default function MapComponent({
           <>
             {intelReports
               .filter(intel => {
+                if (intelStatusFilter && intelStatusFilter !== 'ALL' && intel.threat_level !== intelStatusFilter) return false;
                 if (!searchQuery) return true;
                 const q = searchQuery.toLowerCase();
                 return (intel.title?.toLowerCase().includes(q) || 
-                        intel.location_tag?.toLowerCase().includes(q));
+                        intel.location_tag?.toLowerCase().includes(q) ||
+                        intel.threat_level?.toLowerCase().includes(q));
               })
               .map((intel) => {
               if (!intel.coordinates) return null;
@@ -379,8 +495,8 @@ export default function MapComponent({
 
                         <div className="bg-tactical-red/5 border border-tactical-red/20 p-2 rounded">
                           <div className="text-[9px] font-mono text-tactical-muted uppercase">TINGKAT ANCAMAN</div>
-                          <div className="text-xs font-bold text-tactical-red flex items-center gap-2">
-                            <ShieldAlert size={12} /> {intel.threat_level}
+                          <div className="text-xs font-bold flex items-center gap-2" style={{ color: getIntelColor(intel.threat_level) }}>
+                            <Shield size={12} /> {intel.threat_level}
                           </div>
                         </div>
 
@@ -389,10 +505,22 @@ export default function MapComponent({
                         </div>
 
                         <div className="mt-1 pt-2 border-t border-tactical-border/30 flex justify-between items-center">
-                          <div className="text-[9px] font-mono text-tactical-muted flex items-center gap-1">
+                          <div className="text-[9px] font-mono text-tactical-muted flex items-center gap-1 max-w-[80px] truncate">
                             <MapPin size={8} /> {intel.location_tag}
                           </div>
-                          <div className="text-[9px] font-mono text-tactical-muted">
+                          
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedIntel(intel);
+                              setActiveModal('INTEL_DETAIL');
+                            }}
+                            className="px-4 py-2 bg-tactical-cyan/20 border border-tactical-cyan/40 text-[10px] font-black text-tactical-cyan rounded hover:bg-tactical-cyan hover:text-black transition-all uppercase whitespace-nowrap shadow-[0_0_10px_rgba(34,211,238,0.2)]"
+                          >
+                            LIHAT DETAIL
+                          </button>
+
+                          <div className="text-[9px] font-mono text-tactical-muted shrink-0">
                             {new Date(intel.created_at).toLocaleDateString()}
                           </div>
                         </div>
@@ -412,8 +540,9 @@ export default function MapComponent({
         
         {(!activeCategory || activeCategory === 'OPERASI') && (
           <>
-            {[...opsDalamNegeri.map(o => ({...o, cat: 'DOMESTIC'})), ...opsLuarNegeri.map(o => ({...o, cat: 'INTERNATIONAL'}))]
+            {[...opsDalamNegeri.map(o => ({...o, category: 'DN'})), ...opsLuarNegeri.map(o => ({...o, category: 'LN'}))]
               .filter(op => {
+                if (opFilter && opFilter !== 'ALL' && op.category !== opFilter) return false;
                 if (!searchQuery) return true;
                 const q = searchQuery.toLowerCase();
                 return (op.name?.toLowerCase().includes(q) || 
@@ -428,7 +557,7 @@ export default function MapComponent({
               if (isNaN(lat) || isNaN(lng)) return null;
 
               return (
-                <LayerGroup key={`op-${op.cat}-${op.id}`}>
+                <LayerGroup key={`op-${op.category}-${op.id}`}>
                   <Marker 
                     position={[lat, lng]} 
                     icon={opIcon}
@@ -454,6 +583,79 @@ export default function MapComponent({
             })}
           </>
         )}
+
+        {highlightedLocations.length > 0 && (
+          <>
+            {highlightedLocations.map((loc, idx) => {
+               if (!loc.coordinates) return null;
+               // Robust parsing: strip parentheses and trim whitespace
+               const cleanCoords = loc.coordinates.replace(/[()]/g, '').split(',');
+               if (cleanCoords.length !== 2) return null;
+               const lat = parseFloat(cleanCoords[0].trim());
+               const lng = parseFloat(cleanCoords[1].trim());
+               if (isNaN(lat) || isNaN(lng)) return null;
+
+               const markerColor = loc.type === 'UNIT' ? '#ff3333' : 
+                                 loc.type === 'DALAM_NEGERI' ? '#3b82f6' : 
+                                 '#22d3ee';
+               
+               const shadowColor = loc.type === 'UNIT' ? 'rgba(255,51,51,0.8)' : 
+                                 loc.type === 'DALAM_NEGERI' ? 'rgba(59,130,246,0.8)' : 
+                                 'rgba(34,211,238,0.8)';
+
+               return (
+                 <Marker 
+                   key={`highlight-${loc.type || 'L'}-${loc.id || idx}-${idx}`} 
+                   position={[lat, lng]} 
+                   icon={L.divIcon({
+                     className: 'custom-highlight-icon',
+                     html: `<div class="w-10 h-10 flex items-center justify-center">
+                              <div class="w-0 h-0 border-l-[15px] border-l-transparent border-r-[15px] border-r-transparent border-b-[24px] relative" style="border-bottom-color: ${markerColor}; filter: drop-shadow(0 0 10px ${shadowColor});">
+                                <div class="absolute top-[8px] left-[-4px] w-2 h-2 rounded-full bg-white opacity-40"></div>
+                              </div>
+                            </div>`,
+                     iconSize: [48, 48],
+                     iconAnchor: [24, 48]
+                   })}
+                 >
+                   <Popup className="tactical-popup" minWidth={280}>
+                      <div className="font-bold uppercase mb-1" style={{ color: markerColor }}>{loc.name}</div>
+                      <div className="text-[10px] text-tactical-muted uppercase font-mono">
+                        {loc.type === 'UNIT' ? 'KESATUAN' : 
+                         loc.type === 'DALAM_NEGERI' ? 'OPERASI DALAM NEGERI' : 
+                         'OPERASI LUAR NEGERI'}
+                      </div>
+                       {loc.items_summary ? (
+                         <div className="flex flex-col gap-1.5 max-h-[180px] overflow-y-auto pr-2 custom-scrollbar">
+                           <div className="text-[9px] text-tactical-muted uppercase font-black tracking-widest mb-1">Daftar Logistik & Qty:</div>
+                           {loc.items_summary.split('\n').map((item: string, i: number) => (
+                             <div key={i} className="text-[11px] text-white flex items-center gap-2 py-1 border-b border-white/5 last:border-0">
+                               <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: markerColor }}></div>
+                               <span className="font-bold truncate">{item.split(' (')[0]}</span>
+                               <span className="text-tactical-muted font-mono text-[10px] ml-auto shrink-0 uppercase">
+                                 {item.includes('(') ? item.split(' (')[1].replace(')', '') : ''}
+                               </span>
+                             </div>
+                           ))}
+                         </div>
+                       ) : (
+                         <div className="mt-2 text-xs font-black text-white">{selectedAsset?.name || 'LOGISTIK'}: {loc.quantity} Unit</div>
+                       )}
+                   </Popup>
+                 </Marker>
+               );
+            })}
+            <div className="absolute bottom-6 right-24 z-[1000] pointer-events-auto">
+               <button 
+                 onClick={() => setHighlightedLocations([])}
+                 className="bg-tactical-red border border-white/20 text-white px-6 py-2.5 rounded-full text-[11px] font-black shadow-2xl hover:bg-red-700 transition-all flex items-center gap-2"
+               >
+                 <X size={16} /> BERSIHKAN TAMPILAN LOGISTIK DI MAP
+               </button>
+            </div>
+          </>
+        )}
+
         {singleMarker && (
           <Marker 
             position={singleMarker} 
@@ -484,7 +686,10 @@ export default function MapComponent({
               className="relative w-[500px] h-[500px] pointer-events-none"
             >
               {/* Central Unit Info */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border-4 border-[#c9a041]/50 bg-black/60 flex flex-col items-center justify-center shadow-[0_0_50px_rgba(201,160,65,0.4)] pointer-events-auto backdrop-blur-md z-20">
+              <div 
+                onClick={() => setActiveModal('UNIT_DETAIL')}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full border-4 border-[#c9a041]/50 bg-black/60 flex flex-col items-center justify-center shadow-[0_0_50px_rgba(201,160,65,0.4)] pointer-events-auto backdrop-blur-md z-20 cursor-pointer hover:border-[#c9a041] transition-all group"
+              >
                  <div className="absolute inset-0 rounded-full border border-[#c9a041]/20 animate-pulse"></div>
                  <img src={selectedEntity.logo_url || "/logo_puskodal.png"} className="w-20 h-20 object-contain drop-shadow-[0_0_10px_rgba(201,160,65,0.5)]" />
                  <div className="mt-2 text-center">
@@ -508,7 +713,7 @@ export default function MapComponent({
                 distance={160} 
                 icon={<Truck className="w-8 h-8 text-[#c9a041]" />} 
                 label="Alutsista" 
-                onClick={() => setActiveModal('ALUTSISTA')}
+                onClick={() => setActiveModal('LOGISTIK')}
               />
               
               {/* RIGHT: Personel */}
@@ -573,56 +778,54 @@ export default function MapComponent({
                   : "bg-tactical-green/10 border-tactical-green/30"
               )}>
                 <div className="flex items-center gap-3">
-                  {activeModal === 'PERSONNEL_DETAIL' || activeModal === 'SENJATA_DETAIL' || activeModal === 'ALUTSISTA_DETAIL' ? (
-                    <button 
-                      onClick={() => {
-                        if (detailReturnModal) {
-                          setActiveModal(detailReturnModal as any);
-                        } else {
-                          setActiveModal(activeModal === 'PERSONNEL_DETAIL' ? 'PERSONNEL' : activeModal === 'SENJATA_DETAIL' ? 'SENJATA' : 'ALUTSISTA');
-                        }
-                      }}
-                      className={cn(
-                        "p-1.5 rounded-md transition-colors mr-2",
-                        detailReturnModal === 'OPERASI_DETAIL' ? "hover:bg-tactical-red/20 text-tactical-red" : "hover:bg-tactical-green/20 text-tactical-green"
-                      )}
-                    >
-                      <ChevronLeft size={20} />
-                    </button>
-                   ) : activeModal === 'KEGIATAN' || activeModal === 'SENJATA' || activeModal === 'ALUTSISTA' || activeModal === 'OPERASI_DETAIL' ? (
-                    <button 
-                      onClick={() => {
-                        setActiveModal(null);
-                      }}
-                      className={cn(
-                        "p-1.5 rounded-md transition-colors mr-2",
-                        activeModal === 'OPERASI_DETAIL' ? "hover:bg-tactical-red/20 text-tactical-red" : "hover:bg-tactical-green/20 text-tactical-green"
-                      )}
-                    >
-                      <ChevronLeft size={20} />
-                    </button>
-                  ) : null}
+
                   
-                  {activeModal === 'KEGIATAN' || activeModal === 'SENJATA' || activeModal === 'ALUTSISTA' || activeModal === 'SENJATA_DETAIL' || activeModal === 'ALUTSISTA_DETAIL' || activeModal === 'OPERASI_DETAIL' ? (
+                  {activeModal === 'KEGIATAN' || activeModal === 'SENJATA' || activeModal === 'LOGISTIK' || activeModal === 'SENJATA_DETAIL' || activeModal === 'LOGISTIK_DETAIL' || activeModal === 'OPERASI_DETAIL' || activeModal === 'INTEL_DETAIL' ? (
                     <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => {
+                          setActiveModal(null);
+                        }}
+                        className="mr-2 p-1.5 hover:bg-tactical-green/20 rounded-md transition-colors text-tactical-green border border-tactical-green/30"
+                      >
+                        <ChevronLeft size={20} />
+                      </button>
                       {activeModal === 'KEGIATAN' ? <ClipboardList className="text-tactical-green" /> : 
                        activeModal === 'SENJATA' || activeModal === 'SENJATA_DETAIL' ? <Target className="text-tactical-green" /> :
-                       activeModal === 'OPERASI_DETAIL' ? <ShieldAlert className="text-tactical-red" /> :
-                       <Truck className="text-tactical-green" />}
+                       activeModal === 'OPERASI_DETAIL' ? <Shield className="text-tactical-red" /> :
+                       <Package className="text-tactical-green" />}
                       <div>
-                        <div className="text-[10px] text-tactical-muted font-mono leading-none">U-10</div>
+                        <div className="text-[10px] text-tactical-muted font-mono leading-none">{selectedEntity?.unit_code || 'U-10'}</div>
                         <div className="text-lg font-black text-tactical-text tracking-widest uppercase leading-tight">
-                          {activeModal === 'OPERASI_DETAIL' ? selectedOperation?.name : selectedEntity?.unit_name}
+                          {activeModal === 'OPERASI_DETAIL' ? selectedOperation?.name : 
+                           activeModal === 'LOGISTIK' ? 'DATABASE LOGISTIK UTAMA' : 
+                           activeModal === 'INTEL_DETAIL' ? selectedIntel?.title :
+                           selectedEntity?.unit_name}
                         </div>
                       </div>
                     </div>
+                  ) : activeModal === 'PERSONNEL' || activeModal === 'PERSONNEL_DETAIL' ? (
+                    <div className="flex items-center gap-3">
+                      <button 
+                        onClick={() => {
+                          if (activeModal === 'PERSONNEL_DETAIL') setActiveModal('PERSONNEL');
+                          else if (detailReturnModal) setActiveModal(detailReturnModal as any);
+                          else setActiveModal('UNIT_DETAIL');
+                        }}
+                        className="mr-2 p-1.5 hover:bg-tactical-green/20 rounded-md transition-colors text-tactical-green border border-tactical-green/30"
+                      >
+                        <ChevronLeft size={20} />
+                      </button>
+                      <Users className="text-tactical-green" />
+                      <h3 className="text-lg font-bold text-tactical-text tracking-widest uppercase">
+                        {activeModal === 'PERSONNEL' ? `DAFTAR PERSONIL - ${selectedEntity?.unit_name}` : `PROFIL PERSONIL`}
+                      </h3>
+                    </div>
                   ) : (
                     <div className="flex items-center gap-3">
-                      {activeModal === 'PERSONNEL' || activeModal === 'PERSONNEL_DETAIL' ? <Users className="text-tactical-green" /> : <ClipboardList className="text-tactical-green" />}
+                      <ClipboardList className="text-tactical-green" />
                       <h3 className="text-lg font-bold text-tactical-text tracking-widest uppercase">
-                        {activeModal === 'PERSONNEL' ? `DAFTAR PERSONIL - ${selectedEntity?.unit_name}` : 
-                         activeModal === 'PERSONNEL_DETAIL' ? `PROFIL PERSONIL` :
-                         `LAPORAN KEGIATAN - ${selectedEntity?.unit_name}`}
+                        LAPORAN KEGIATAN - {selectedEntity?.unit_name}
                       </h3>
                     </div>
                   )}
@@ -641,35 +844,73 @@ export default function MapComponent({
               {/* Modal Content */}
               <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
                 {activeModal === 'PERSONNEL' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[
-                      { id: 1, name: "Agus Setiawan", rank: "Mayor Inf", nrp: "1109001234", spec: "Penanggulangan Teror", photo: "https://i.pravatar.cc/150?u=1" },
-                      { id: 2, name: "Budi Santoso", rank: "Lettu Inf", nrp: "1112005678", spec: "Para Komando", photo: "https://i.pravatar.cc/150?u=2" },
-                      { id: 3, name: "Dedi Kurniawan", rank: "Serka", nrp: "1115009012", spec: "Sniper", photo: "https://i.pravatar.cc/150?u=3" },
-                      { id: 4, name: "Eko Prasetyo", rank: "Sertu", nrp: "1118003456", spec: "Intelijen Tempur", photo: "https://i.pravatar.cc/150?u=4" },
-                      { id: 5, name: "Fajar Ramadhan", rank: "Pratu", nrp: "1120007890", spec: "Komunikasi", photo: "https://i.pravatar.cc/150?u=5" },
-                      { id: 6, name: "Guntur Pratama", rank: "Serda", nrp: "1122004567", spec: "Demolisi", photo: "https://i.pravatar.cc/150?u=6" },
-                    ].map((p, i) => (
-                      <div key={i} className="flex items-center gap-4 p-3 bg-tactical-green/5 border border-tactical-green/20 rounded group hover:bg-tactical-green/10 transition-colors">
-                        <div className="w-14 h-14 rounded overflow-hidden border border-tactical-green/30">
-                          <img src={p.photo} alt={p.name} className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-bold text-tactical-text uppercase truncate">{p.name}</div>
-                          <div className="text-[10px] font-mono text-tactical-muted">{p.rank} | NRP: {p.nrp}</div>
-                          <button 
-                            onClick={() => {
-                              setSelectedPersonnel(p);
-                              setDetailReturnModal('PERSONNEL');
-                              setActiveModal('PERSONNEL_DETAIL');
-                            }}
-                            className="mt-2 text-[9px] font-bold text-tactical-green hover:underline flex items-center gap-1"
-                          >
-                            <Plus size={10} /> LIHAT DETAIL PROFIL
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                       <h4 className="text-sm font-bold text-tactical-muted uppercase tracking-widest border-l-2 border-tactical-green pl-2">Personel Terdeploy ({unitPersonnel.length})</h4>
+                    </div>
+                    <div className="overflow-x-auto border border-tactical-border rounded-lg bg-black/40">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-tactical-border bg-tactical-green/10">
+                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest">No</th>
+                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest">Foto</th>
+                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest">Nama Lengkap</th>
+                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest text-center">Pangkat / NRP</th>
+                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest text-center">Spesialisasi</th>
+                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest text-right">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-tactical-border/30">
+                           {unitPersonnel.length > 0 ? unitPersonnel.map((p, i) => (
+                            <tr key={i} className="hover:bg-tactical-green/5 transition-colors group">
+                              <td className="p-4 text-base font-mono text-tactical-muted">{i + 1}</td>
+                              <td className="p-4">
+                                <div className="w-20 h-20 rounded border border-tactical-green/30 overflow-hidden bg-black/40 shadow-[0_0_15px_rgba(57,255,20,0.2)]">
+                                  <img 
+                                    src={p.photo_url || `https://i.pravatar.cc/150?u=${p.id}`} 
+                                    alt={p.name} 
+                                    className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" 
+                                  />
+                                </div>
+                              </td>
+                              <td className="p-4">
+                                <div className="text-lg font-black text-tactical-text uppercase tracking-tight">{p.name}</div>
+                              </td>
+                              <td className="p-4 text-center">
+                                <div className="text-sm text-tactical-muted uppercase font-mono font-black">{p.rank} / {p.nrp || '-'}</div>
+                              </td>
+                              <td className="p-4 text-center">
+                                <span className="px-4 py-1.5 bg-tactical-green/10 border border-tactical-green/30 rounded text-xs font-black text-tactical-green uppercase tracking-wider">
+                                  {p.unit_role || p.specialization || 'OPERASI'}
+                                </span>
+                              </td>
+                              <td className="p-4 text-right">
+                                <button 
+                                  onClick={() => {
+                                    setSelectedPersonnel({
+                                      ...p,
+                                      photo: p.photo_url || "https://i.pravatar.cc/150?u=" + p.id,
+                                      spec: p.specialization || "OPERASIONAL"
+                                    });
+                                    setDetailReturnModal('PERSONNEL');
+                                    setActiveModal('PERSONNEL_DETAIL');
+                                  }}
+                                  className="p-2 hover:bg-tactical-green/20 rounded-md transition-all text-tactical-muted hover:text-tactical-green bg-tactical-green/5 border border-tactical-green/20"
+                                >
+                                  <Eye size={18} />
+                                </button>
+                              </td>
+                            </tr>
+                          )) : (
+                            <tr>
+                              <td colSpan={6} className="p-10 text-center text-tactical-muted text-[10px] uppercase font-mono italic">
+                                Belum ada data personel terdeploy.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 ) : activeModal === 'PERSONNEL_DETAIL' && selectedPersonnel ? (
                   <div className="flex flex-col gap-6 custom-scrollbar pb-4">
@@ -850,11 +1091,7 @@ export default function MapComponent({
                     
                     <button 
                       onClick={() => {
-                        if (detailReturnModal) {
-                          setActiveModal(detailReturnModal as any);
-                        } else {
-                          setActiveModal('PERSONNEL');
-                        }
+                        setActiveModal(null);
                       }}
                       className={cn(
                         "text-xs font-bold flex items-center gap-2 mt-6 pt-4 border-t border-tactical-border",
@@ -870,54 +1107,81 @@ export default function MapComponent({
                     <div className="flex items-center gap-2">
                        <div className="w-1 h-6 bg-red-600"></div>
                        <h4 className="text-xl font-bold text-tactical-text uppercase tracking-widest">Postur & Kegiatan</h4>
-                       <span className="text-sm text-tactical-muted ml-2">2 kegiatan</span>
+                       <span className="text-sm text-tactical-muted ml-2">{unitActivities.length} kegiatan</span>
                     </div>
 
-                    {/* Section: Postur Unit Saat Ini */}
-                    <div className="space-y-4">
-                       <h5 className="text-xs font-bold text-tactical-muted uppercase tracking-widest">Postur Unit Saat Ini</h5>
-                       <div className="bg-[#0f2419] border border-green-900/50 p-6 rounded flex divide-x divide-green-900/30 shadow-[inset_0_0_20px_rgba(0,255,0,0.05)]">
-                          <div className="flex-1 text-center py-2">
-                             <div className="text-4xl font-black text-tactical-green">{selectedEntity?.strength || 450}</div>
-                             <div className="text-[10px] text-tactical-muted uppercase mt-1 font-bold tracking-widest">Personil Aktif</div>
-                          </div>
-                          <div className="flex-1 text-center py-2">
-                             <div className="text-4xl font-black text-yellow-500">{selectedEntity?.logistics_count || 12}</div>
-                             <div className="text-[10px] text-tactical-muted uppercase mt-1 font-bold tracking-widest">Aset Operasional</div>
-                          </div>
-                       </div>
-                    </div>
+                     {/* Section: Postur Unit Saat Ini */}
+                     <div className="space-y-4">
+                        <h5 className="text-xs font-bold text-tactical-muted uppercase tracking-widest">Postur Unit Saat Ini</h5>
+                        <div className="bg-[#0f2419] border border-green-900/50 p-4 rounded grid grid-cols-2 md:grid-cols-4 divide-x divide-green-900/30 shadow-[inset_0_0_20px_rgba(0,255,0,0.05)]">
+                           <div className="text-center py-1">
+                              <div className="text-2xl font-black text-tactical-green">{unitPersonnel.length}</div>
+                              <div className="text-[9px] text-tactical-muted uppercase mt-0.5 font-bold tracking-widest leading-tight">Personil<br/>Aktif</div>
+                           </div>
+                           <div className="text-center py-1">
+                              <div className="text-2xl font-black text-yellow-500">{unitLogistics.length}</div>
+                              <div className="text-[9px] text-tactical-muted uppercase mt-0.5 font-bold tracking-widest leading-tight">Aset<br/>Operasional</div>
+                           </div>
+                           <div className="text-center py-1">
+                              <div className="text-2xl font-black text-blue-500">{unitActivities.filter(a => a.category === 'DALAM_NEGERI').length}</div>
+                              <div className="text-[9px] text-tactical-muted uppercase mt-0.5 font-bold tracking-widest leading-tight">Tugas<br/>Dalam Negeri</div>
+                           </div>
+                           <div className="text-center py-1">
+                              <div className="text-2xl font-black text-cyan-400">{unitActivities.filter(a => a.category === 'LUAR_NEGERI').length}</div>
+                              <div className="text-[9px] text-tactical-muted uppercase mt-0.5 font-bold tracking-widest leading-tight">Tugas<br/>Luar Negeri</div>
+                           </div>
+                        </div>
+                     </div>
 
                     {/* Section: Kegiatan Terjadwal */}
                     <div className="space-y-4">
                        <h5 className="text-xs font-bold text-tactical-muted uppercase tracking-widest">Kegiatan Terjadwal</h5>
                        <div className="space-y-3">
-                          {/* Domestic Activity */}
-                          <div className="bg-[#1a2333] border border-blue-900/50 p-5 rounded group hover:bg-[#1e2a3d] transition-colors cursor-pointer border-l-4 border-l-blue-500 shadow-lg">
-                             <div className="flex justify-between items-start">
-                                <div className="text-lg font-bold text-tactical-text uppercase tracking-wider">Operasi Cendrawasih</div>
-                                <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-bold border border-blue-500/30">DALAM NEGERI</span>
+                          {unitActivities.length > 0 ? unitActivities.map((act, idx) => (
+                            <div 
+                              key={idx}
+                              onClick={() => {
+                                setSelectedOperation({
+                                  ...act,
+                                  category: act.category === 'DALAM_NEGERI' ? 'DN' : 'LN'
+                                });
+                                setDetailReturnModal('KEGIATAN');
+                                setActiveModal('OPERASI_DETAIL');
+                              }}
+                              className={cn(
+                                "border p-5 rounded group hover:bg-opacity-20 transition-colors cursor-pointer border-l-4 shadow-lg",
+                                act.category === 'DALAM_NEGERI' 
+                                  ? "bg-blue-900/10 border-blue-900/50 border-l-blue-500 hover:bg-blue-900" 
+                                  : "bg-purple-900/10 border-purple-900/50 border-l-purple-500 hover:bg-purple-900"
+                              )}
+                            >
+                               <div className="flex justify-between items-start">
+                                  <div className="text-lg font-bold text-tactical-text uppercase tracking-wider">{act.name}</div>
+                                  <span className={cn(
+                                    "text-[10px] px-2 py-0.5 rounded font-bold border",
+                                    act.category === 'DALAM_NEGERI'
+                                      ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
+                                      : "bg-purple-500/20 text-purple-400 border-purple-500/30"
+                                  )}>
+                                    {act.category === 'DALAM_NEGERI' ? 'DALAM NEGERI' : 'LUAR NEGERI'}
+                                  </span>
+                               </div>
+                               <div className="text-[11px] text-tactical-muted mt-1 uppercase">Tipe: {act.type || 'OPERASI TAKTIS'}</div>
+                               <div className="text-[10px] text-tactical-muted mt-2 font-mono flex items-center gap-2">
+                                  <div className={cn(
+                                    "w-1.5 h-1.5 rounded-full animate-pulse",
+                                    act.status === 'ONGOING' ? "bg-green-500" : "bg-blue-500"
+                                  )}></div>
+                                  STATUS: {act.status} | MULAI: {act.created_at ? new Date(act.created_at).toLocaleDateString() : 'N/A'}
+                                </div>
                              </div>
-                             <div className="text-[11px] text-tactical-muted mt-1">Tipe: Pengamanan Wilayah</div>
-                             <div className="text-[10px] text-tactical-muted mt-2 font-mono flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
-                                STATUS: BERJALAN | ESTIMASI SELESAI: 20 DES 2026
+                           )) : (
+                             <div className="text-center py-12 border border-dashed border-tactical-border rounded-lg bg-black/20">
+                                <ClipboardList className="w-12 h-12 text-tactical-muted/30 mx-auto mb-3" />
+                                <div className="text-xs text-tactical-muted font-mono uppercase">Tidak ada kegiatan operasional aktif untuk unit ini.</div>
                              </div>
-                          </div>
-
-                          {/* International Activity */}
-                          <div className="bg-[#241a33] border border-purple-900/50 p-5 rounded group hover:bg-[#2b1e3d] transition-colors cursor-pointer border-l-4 border-l-purple-500 shadow-lg">
-                             <div className="flex justify-between items-start">
-                                <div className="text-lg font-bold text-tactical-text uppercase tracking-wider">Satgas Konga XXIII-Q</div>
-                                <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded font-bold border border-purple-900/30">LUAR NEGERI</span>
-                             </div>
-                             <div className="text-[11px] text-tactical-muted mt-1">Tipe: UN Peacekeeping Mission</div>
-                             <div className="text-[10px] text-tactical-muted mt-2 font-mono flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
-                                STATUS: PERSIAPAN | LOKASI: LEBANON
-                             </div>
-                          </div>
-                       </div>
+                           )}
+                        </div>
                     </div>
                   </div>
                 ) : activeModal === 'SENJATA' ? (
@@ -943,49 +1207,103 @@ export default function MapComponent({
                     </div>
 
                     {/* List of Weapons */}
-                    <div className="space-y-4">
-                       {[
-                         { name: "Senapan Serbu SS2-V1", qty: "5 unit", status: "Siap" },
-                         { name: "Senapan Penembak Jitu SPR-2", qty: "2 unit", status: "Siap" },
-                         { name: "Granat Tangan", qty: "20 buah", status: "Siap" },
-                         { name: "Amunisi 5.56mm", qty: "5.000 butir", status: "Tersedia" },
-                         { name: "Amunisi 7.62mm", qty: "2.000 butir", status: "Tersedia" },
-                       ].filter(item => 
-                         item.name.toLowerCase().includes(modalSearchQuery.toLowerCase())
-                       ).map((item, idx) => (
-                         <div 
-                           key={idx} 
-                           onClick={() => {
-                             setSelectedWeapon(item);
-                             setActiveModal('SENJATA_DETAIL');
-                           }}
-                           className="bg-tactical-green/5 border border-tactical-green/10 p-4 rounded-lg group hover:bg-tactical-green/10 transition-all cursor-pointer flex justify-between items-center"
-                         >
-                            <div>
-                               <div className="text-sm font-bold text-tactical-text uppercase tracking-wider">{item.name}</div>
-                               <div className="text-[11px] text-tactical-muted mt-1">Jumlah: {item.qty}</div>
-                            </div>
-                            <ChevronRight size={16} className="text-tactical-muted group-hover:text-tactical-green transition-colors" />
-                         </div>
-                       ))}
+                    <div className="overflow-x-auto border border-tactical-border rounded-lg bg-black/40">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-tactical-border bg-tactical-red/10">
+                            <th className="p-4 text-xs font-black text-tactical-red uppercase tracking-widest">No</th>
+                            <th className="p-4 text-xs font-black text-tactical-red uppercase tracking-widest">Gambar</th>
+                            <th className="p-4 text-xs font-black text-tactical-red uppercase tracking-widest">Nama Senjata</th>
+                            <th className="p-4 text-xs font-black text-tactical-red uppercase tracking-widest text-center">Kategori</th>
+                            <th className="p-4 text-xs font-black text-tactical-red uppercase tracking-widest text-center">Stok</th>
+                            <th className="p-4 text-xs font-black text-tactical-red uppercase tracking-widest text-right">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-tactical-border/30">
+                           {(unitLogistics.length > 0 ? unitLogistics.filter(l => l.category?.toLowerCase().includes('senjata')) : []).filter(item => 
+                            (item.name || item.item_name).toLowerCase().includes(modalSearchQuery.toLowerCase())
+                          ).map((item, idx) => (
+                            <tr key={idx} className="hover:bg-tactical-red/5 transition-colors group">
+                              <td className="p-4 text-sm font-mono text-tactical-muted">{idx + 1}</td>
+                              <td className="p-4">
+                                <div className="w-14 h-14 rounded border border-tactical-red/30 overflow-hidden bg-black/40 flex items-center justify-center p-2 shadow-[0_0_10px_rgba(255,51,51,0.1)]">
+                                  {item.image_url ? (
+                                    <img src={item.image_url} alt={item.name || item.item_name} className="w-full h-full object-contain" />
+                                  ) : (
+                                    <Target size={24} className="text-tactical-red/30" />
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-4">
+                                <div className="text-sm font-bold text-tactical-text uppercase tracking-tight">{item.name || item.item_name}</div>
+                              </td>
+                              <td className="p-4 text-center">
+                                <span className="px-3 py-1 bg-tactical-red/10 border border-tactical-red/30 rounded text-[10px] font-black text-tactical-red uppercase tracking-wider">
+                                  {item.category || item.item_category}
+                                </span>
+                              </td>
+                              <td className="p-4 text-center text-sm font-black text-tactical-red font-mono">
+                                {item.quantity || item.qty} {item.unit || 'UNIT'}
+                              </td>
+                              <td className="p-4 text-right flex items-center justify-end gap-2">
+                                <button 
+                                  onClick={async () => {
+                                    const itemName = item.name || item.item_name;
+                                    const data = await getLogisticsDistributionDetails(itemName);
+                                    const allLocs = [
+                                      ...(data.units || []).map((u: any) => ({ ...u, type: 'UNIT' })),
+                                      ...(data.ops_dn || []).map((o: any) => ({ ...o, type: 'DALAM_NEGERI' })),
+                                      ...(data.ops_ln || []).map((o: any) => ({ ...o, type: 'LUAR_NEGERI' }))
+                                    ];
+                                    setHighlightedLocations(allLocs);
+                                    setActiveModal(null);
+                                    setSelectedEntity(null);
+                                  }}
+                                  className="px-3 py-1.5 bg-tactical-red/10 border border-tactical-red/30 rounded text-[10px] font-black text-tactical-red hover:bg-tactical-red hover:text-white transition-all flex items-center gap-1.5 uppercase"
+                                >
+                                  <MapPin size={12} /> LIHAT MAP
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    setSelectedWeapon({
+                                      ...item,
+                                      name: item.name || item.item_name,
+                                      qty: (item.quantity || item.qty) + " " + (item.unit || 'UNIT'),
+                                      status: item.condition_status || "Siap"
+                                    });
+                                    setActiveModal('SENJATA_DETAIL');
+                                  }}
+                                  className="p-2 hover:bg-tactical-red/20 rounded-md transition-all text-tactical-muted hover:text-tactical-red bg-tactical-red/5 border border-tactical-red/20"
+                                >
+                                  <Eye size={18} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                          {(unitLogistics.filter(l => l.category?.toLowerCase().includes('senjata')).length === 0) && (
+                            <tr>
+                              <td colSpan={6} className="p-10 text-center text-tactical-muted text-[10px] uppercase font-mono italic">
+                                Tidak ada data senjata untuk kesatuan ini.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
-                ) : activeModal === 'ALUTSISTA' ? (
+                                ) : activeModal === 'LOGISTIK' ? (
                   <div className="space-y-8 pb-4">
-                    {/* Header: Alutsista */}
                     <div className="flex items-center justify-between gap-4">
                        <div className="flex items-center gap-2">
-                          <div className="w-1 h-6 bg-red-600"></div>
-                          <h4 className="text-xl font-bold text-tactical-text uppercase tracking-widest whitespace-nowrap">Alutsista</h4>
-                          <span className="text-sm text-tactical-muted ml-2">5 aset</span>
+                          <div className="w-1 h-6 bg-tactical-green"></div>
+                          <h4 className="text-xl font-bold text-tactical-text uppercase tracking-widest whitespace-nowrap">Daftar Logistik Utama</h4>
+                          <span className="text-sm text-tactical-muted ml-2">{(unitLogistics.length > 0 ? unitLogistics : allLogistics).length} item</span>
                        </div>
-
-                       {/* Search Input */}
                        <div className="relative flex-1 max-w-[300px]">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tactical-muted" />
                           <input 
                             type="text" 
-                            placeholder="Smartsearch: Nama / Model..."
+                            placeholder="Cari Logistik..."
                             value={modalSearchQuery}
                             onChange={(e) => setModalSearchQuery(e.target.value)}
                             className="w-full bg-black/40 border border-tactical-green/30 rounded-md py-1.5 pl-9 pr-3 text-xs text-tactical-text placeholder:text-tactical-muted/50 focus:outline-none focus:border-tactical-green transition-all"
@@ -993,33 +1311,91 @@ export default function MapComponent({
                        </div>
                     </div>
 
-                    {/* List of Assets */}
-                    <div className="space-y-4">
-                       {[
-                         { name: "Kendaraan Lapis Baja", model: "BTR-50", status: "Siap" },
-                         { name: "UAV", model: "DJI Phantom 4 Pro", status: "Aktif" },
-                         { name: "Radio", model: "Motorola APX 8000", status: "Layak" },
-                         { name: "Tenda Lapangan", model: "Tenda Pelatihan", status: "Siap" },
-                         { name: "Genset Portable", model: "Yamaha EF2000iS", status: "Siap" },
-                       ].filter(item => 
-                         item.name.toLowerCase().includes(modalSearchQuery.toLowerCase()) || 
-                         item.model.toLowerCase().includes(modalSearchQuery.toLowerCase())
-                       ).map((item, idx) => (
-                         <div 
-                           key={idx} 
-                           onClick={() => {
-                             setSelectedAsset(item);
-                             setActiveModal('ALUTSISTA_DETAIL');
-                           }}
-                           className="bg-tactical-green/5 border border-tactical-green/10 p-4 rounded-lg group hover:bg-tactical-green/10 transition-all cursor-pointer flex justify-between items-center"
-                         >
-                            <div>
-                               <div className="text-sm font-bold text-tactical-text uppercase tracking-wider">{item.name}</div>
-                               <div className="text-[11px] text-tactical-muted mt-1">Model: {item.model}</div>
-                            </div>
-                            <ChevronRight size={16} className="text-tactical-muted group-hover:text-tactical-green transition-colors" />
-                         </div>
-                       ))}
+                    <div className="overflow-x-auto border border-tactical-border rounded-lg bg-black/40">
+                      <table className="w-full text-left border-collapse">
+                         <thead>
+                          <tr className="border-b border-tactical-border bg-tactical-green/10">
+                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest">No</th>
+                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest">Gambar</th>
+                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest">Nama Barang</th>
+                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest text-center">Kategori</th>
+                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest text-center">Stok</th>
+                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest text-right">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-tactical-border/30">
+                           {(unitLogistics.length > 0 ? unitLogistics : allLogistics).filter(item => {
+                            if (!modalSearchQuery) return true;
+                            const q = modalSearchQuery.toLowerCase();
+                            return (item.name || item.item_name)?.toLowerCase().includes(q) || 
+                                   (item.category || item.item_category)?.toLowerCase().includes(q);
+                          }).map((item, idx) => (
+                            <tr key={idx} className="hover:bg-tactical-green/5 transition-colors group">
+                              <td className="p-4 text-sm font-mono text-tactical-muted">{idx + 1}</td>
+                              <td className="p-4">
+                                <div className="w-14 h-14 rounded border border-tactical-green/30 overflow-hidden bg-black/40 flex items-center justify-center p-2 shadow-[0_0_10px_rgba(57,255,20,0.1)]">
+                                  {item.image_url ? (
+                                    <img src={item.image_url} alt={item.name || item.item_name} className="w-full h-full object-contain" />
+                                  ) : (
+                                    <Package size={24} className="text-tactical-green/30" />
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-4">
+                                <div className="text-sm font-bold text-tactical-text uppercase tracking-tight">{item.name || item.item_name}</div>
+                              </td>
+                              <td className="p-4 text-center">
+                                <span className="px-3 py-1 bg-tactical-green/10 border border-tactical-green/30 rounded text-[10px] font-black text-tactical-green uppercase tracking-wider">
+                                  {item.category || item.item_category}
+                                </span>
+                              </td>
+                              <td className="p-4 text-center text-sm font-black text-tactical-green font-mono">
+                                {item.quantity || item.qty} {item.unit || 'UNIT'}
+                              </td>
+                              <td className="p-4 text-right flex items-center justify-end gap-2">
+                                <button 
+                                  onClick={async () => {
+                                    const itemName = item.name || item.item_name;
+                                    const data = await getLogisticsDistributionDetails(itemName);
+                                    const allLocs = [
+                                      ...(data.units || []).map((u: any) => ({ ...u, type: 'UNIT' })),
+                                      ...(data.ops_dn || []).map((o: any) => ({ ...o, type: 'DALAM_NEGERI' })),
+                                      ...(data.ops_ln || []).map((o: any) => ({ ...o, type: 'LUAR_NEGERI' }))
+                                    ];
+                                    setHighlightedLocations(allLocs);
+                                    setActiveModal(null);
+                                    setSelectedEntity(null);
+                                  }}
+                                  className="px-3 py-1.5 bg-tactical-green/10 border border-tactical-green/30 rounded text-[10px] font-black text-tactical-green hover:bg-tactical-green hover:text-black transition-all flex items-center gap-1.5 uppercase"
+                                >
+                                  <MapPin size={12} /> LIHAT MAP
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    setSelectedAsset({
+                                      ...item,
+                                      name: item.name || item.item_name,
+                                      model: item.category || item.item_category || 'LOGISTIK'
+                                    });
+                                    setDetailReturnModal('LOGISTIK');
+                                    setActiveModal('LOGISTIK_DETAIL');
+                                  }}
+                                  className="p-2 hover:bg-tactical-green/20 rounded-md transition-all text-tactical-muted hover:text-tactical-green bg-tactical-green/5 border border-tactical-green/20"
+                                >
+                                  <Eye size={18} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                          {(unitLogistics.length === 0 && allLogistics.length === 0) && (
+                            <tr>
+                              <td colSpan={6} className="p-10 text-center text-tactical-muted text-[10px] uppercase font-mono italic">
+                                Tidak ada data logistik tersedia.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 ) : activeModal === 'SENJATA_DETAIL' && selectedWeapon ? (
@@ -1102,138 +1478,184 @@ export default function MapComponent({
 
                     <button 
                       onClick={() => {
-                        if (detailReturnModal) {
-                          setActiveModal(detailReturnModal as any);
-                        } else {
-                          setActiveModal('SENJATA');
-                        }
+                        setActiveModal(null);
                       }}
                       className={cn(
                         "text-xs font-bold flex items-center gap-2 mt-6 pt-4 border-t border-tactical-border",
                         detailReturnModal === 'OPERASI_DETAIL' ? "text-tactical-red/70 hover:text-tactical-red" : "text-tactical-muted hover:text-tactical-green"
                       )}
                     >
-                      &larr; KEMBALI KE {detailReturnModal === 'OPERASI_DETAIL' ? 'DETAIL OPERASI' : 'DAFTAR SENJATA'}
+                      &larr; KEMBALI KE {detailReturnModal === 'OPERASI_DETAIL' ? 'DETAIL OPERASI' : 'DAFTAR LOGISTIK'}
                     </button>
                   </div>
-                 ) : activeModal === 'ALUTSISTA_DETAIL' && selectedAsset ? (
-                   <div className="space-y-8 pb-4">
-                     {/* Asset Info */}
-                     <div className={cn(
-                       "p-4 rounded border transition-colors duration-300",
-                       detailReturnModal === 'OPERASI_DETAIL' ? "bg-tactical-red/5 border-tactical-red/20" : "bg-tactical-bg border border-tactical-green/20"
-                     )}>
-                        <div className={cn(
-                          "flex justify-between items-start mb-4 border-b pb-2",
-                          detailReturnModal === 'OPERASI_DETAIL' ? "border-tactical-red/20" : "border-tactical-green/20"
-                        )}>
-                           <h4 className={cn(
-                             "text-xl font-bold uppercase tracking-widest",
-                             detailReturnModal === 'OPERASI_DETAIL' ? "text-tactical-red" : "text-tactical-green"
-                           )}>{selectedAsset.name}</h4>
-                           <div className="text-right">
-                              <div className="text-[10px] text-tactical-muted uppercase leading-none mb-1">Jumlah Di Kesatuan</div>
-                              <div className={cn(
-                                "text-lg font-black leading-none",
-                                detailReturnModal === 'OPERASI_DETAIL' ? "text-tactical-red" : "text-tactical-green"
-                              )}>1 Unit</div>
+                 ) : activeModal === 'LOGISTIK_DETAIL' && selectedAsset ? (
+                  <div className="space-y-8 pb-4">
+                    {/* Header Asset */}
+                     <div className="bg-tactical-bg p-4 rounded-lg border border-tactical-green/20 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-3">
+                           <div className="flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-tactical-green animate-pulse"></div>
+                              <span className="text-[9px] font-black text-tactical-green tracking-widest uppercase">TERDATA DI DATABASE</span>
                            </div>
                         </div>
-                       <div className="grid grid-cols-2 gap-4">
-                          <div>
-                             <div className="text-[10px] text-tactical-muted uppercase">Manufaktur</div>
-                             <div className="text-sm font-bold text-tactical-text">Industri Pertahanan Nasional</div>
+                        
+                        <div className="flex flex-col md:flex-row gap-6 items-start">
+                           <div className="w-24 h-24 bg-black/40 border-2 border-tactical-green/30 rounded-lg p-3 flex items-center justify-center shadow-[0_0_20px_rgba(0,255,0,0.05)]">
+                             {selectedAsset.image_url ? (
+                               <img src={selectedAsset.image_url} alt={selectedAsset.name} className="w-full h-full object-contain" />
+                             ) : (
+                               <Package size={60} className="text-tactical-green/20" />
+                             )}
                           </div>
-                          <div>
-                             <div className="text-[10px] text-tactical-muted uppercase">Model / Varian</div>
-                             <div className="text-sm font-bold text-tactical-text">{selectedAsset.model}</div>
-                          </div>
-                          <div>
-                             <div className="text-[10px] text-tactical-muted uppercase">Tahun Perolehan</div>
-                             <div className="text-sm font-bold text-tactical-text">2021</div>
-                          </div>
-                          <div>
-                             <div className="text-[10px] text-tactical-muted uppercase">Kapasitas / Power</div>
-                             <div className="text-sm font-bold text-tactical-text">Standar Militer</div>
-                          </div>
+                           <div className="flex-1 pt-1">
+                              <div className="text-[9px] text-tactical-green font-mono uppercase tracking-[0.3em] mb-1">LOGISTIK ID: {selectedAsset.id || 'N/A'}</div>
+                              <h4 className="text-xl font-black text-tactical-text uppercase tracking-tight leading-none mb-3">{selectedAsset.name || selectedAsset.item_name}</h4>
+                             
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                                 <div className="space-y-0.5">
+                                    <div className="text-[8px] text-tactical-muted uppercase font-bold tracking-widest">Kategori</div>
+                                    <div className="text-[11px] font-bold text-tactical-text uppercase">{selectedAsset.category || selectedAsset.item_category || 'Logistik'}</div>
+                                 </div>
+                                 <div className="space-y-0.5">
+                                    <div className="text-[8px] text-tactical-muted uppercase font-bold tracking-widest">Kondisi</div>
+                                    <div className="text-[11px] font-bold text-tactical-green uppercase">{selectedAsset.condition_status || 'BAIK'}</div>
+                                 </div>
+                                 <div className="space-y-0.5">
+                                    <div className="text-[8px] text-tactical-muted uppercase font-bold tracking-widest">Tipe</div>
+                                    <div className="text-[11px] font-bold text-tactical-text">STANDAR MILITER</div>
+                                 </div>
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+
+                    {/* Sebaran Logistik Distribution Cards */}
+                    <div className="space-y-4">
+                       <div className="flex items-center gap-2 border-l-2 border-tactical-green pl-2">
+                          <h5 className="text-xs font-bold text-tactical-muted uppercase tracking-widest">Sebaran Logistik</h5>
                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                           {/* Kesatuan */}
+                           <div className="bg-black/60 border border-tactical-border rounded p-3 flex flex-col items-center justify-between gap-3 group hover:border-tactical-red/50 transition-all shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+                              <div className="text-center">
+                                 <div className="text-[9px] text-tactical-muted uppercase font-mono mb-1 tracking-widest">KESATUAN</div>
+                                 <div className="text-xl font-black text-tactical-red">{logisticsDistribution.kesatuan} Unit</div>
+                              </div>
+                              <button 
+                                onClick={() => {
+                                  setHighlightedLocations(distributionDetails.units);
+                                  if (distributionDetails.units.length > 0 && distributionDetails.units[0].coordinates) {
+                                    const coords = distributionDetails.units[0].coordinates.split(',');
+                                    if (onMarkerClick) onMarkerClick([parseFloat(coords[0]), parseFloat(coords[1])], 12);
+                                    setActiveModal(null);
+                                  }
+                                }}
+                                className="w-full py-2 bg-tactical-red/10 border border-tactical-red/30 rounded text-[9px] font-black text-tactical-red hover:bg-tactical-red hover:text-white transition-all uppercase flex items-center justify-center"
+                              >
+                                 LIHAT MAP
+                              </button>
+                               <button 
+                                 onClick={() => {
+                                   setActiveDistributionTab("KESATUAN");
+                                   setActiveModal("LOGISTIK_USAGE");
+                                 }}
+                                 className="w-full py-1.5 bg-tactical-muted/10 border border-tactical-muted/30 rounded text-[8px] font-bold text-tactical-muted hover:bg-tactical-muted hover:text-white transition-all uppercase flex items-center justify-center gap-2 mt-1"
+                               >
+                                  <Database size={10} /> DATA KESATUAN
+                               </button>
+                           </div>
+                           {/* Operasi Dalam Negri */}
+                           <div className="bg-black/60 border border-tactical-border rounded p-3 flex flex-col items-center justify-between gap-3 group hover:border-blue-500/50 transition-all shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+                              <div className="text-center">
+                                 <div className="text-[9px] text-tactical-muted uppercase font-mono mb-1 tracking-widest">OPS DALAM NEGERI</div>
+                                 <div className="text-xl font-black text-blue-500">{logisticsDistribution.ops_dn} Unit</div>
+                              </div>
+                              <button 
+                                onClick={() => {
+                                  setHighlightedLocations(distributionDetails.ops_dn);
+                                  if (distributionDetails.ops_dn.length > 0 && distributionDetails.ops_dn[0].coordinates) {
+                                    const coords = distributionDetails.ops_dn[0].coordinates.split(',');
+                                    if (onMarkerClick) onMarkerClick([parseFloat(coords[0]), parseFloat(coords[1])], 12);
+                                    setActiveModal(null);
+                                  }
+                                }}
+                                className="w-full py-2 bg-blue-500/10 border border-blue-500/30 rounded text-[9px] font-black text-blue-500 hover:bg-blue-500 hover:text-white transition-all uppercase flex items-center justify-center"
+                              >
+                                 LIHAT MAP
+                              </button>
+                               <button 
+                                 onClick={() => {
+                                   setActiveDistributionTab("OPS_DN");
+                                   setActiveModal("LOGISTIK_USAGE");
+                                 }}
+                                 className="w-full py-1.5 bg-blue-500/10 border border-blue-500/30 rounded text-[8px] font-bold text-blue-500 hover:bg-blue-500 hover:text-white transition-all uppercase flex items-center justify-center gap-2 mt-1"
+                               >
+                                  <Database size={10} /> DATA OPERASI DL
+                               </button>
+                           </div>
+                           {/* Operasi Luar Negri */}
+                           <div className="bg-black/60 border border-tactical-border rounded p-3 flex flex-col items-center justify-between gap-3 group hover:border-cyan-400/50 transition-all shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+                              <div className="text-center">
+                                 <div className="text-[9px] text-tactical-muted uppercase font-mono mb-1 tracking-widest">OPS LUAR NEGERI</div>
+                                 <div className="text-xl font-black text-cyan-400">{logisticsDistribution.ops_ln} Unit</div>
+                              </div>
+                              <button 
+                                onClick={() => {
+                                  setHighlightedLocations(distributionDetails.ops_ln);
+                                  if (distributionDetails.ops_ln.length > 0 && distributionDetails.ops_ln[0].coordinates) {
+                                    const coords = distributionDetails.ops_ln[0].coordinates.split(',');
+                                    if (onMarkerClick) onMarkerClick([parseFloat(coords[0]), parseFloat(coords[1])], 12);
+                                    setActiveModal(null);
+                                  }
+                                }}
+                                className="w-full py-2 bg-cyan-400/10 border border-cyan-400/30 rounded text-[9px] font-black text-cyan-400 hover:bg-cyan-400 hover:text-white transition-all uppercase flex items-center justify-center"
+                              >
+                                 LIHAT MAP
+                              </button>
+                               <button 
+                                 onClick={() => {
+                                   setActiveDistributionTab("OPS_LN");
+                                   setActiveModal("LOGISTIK_USAGE");
+                                 }}
+                                 className="w-full py-1.5 bg-cyan-400/10 border border-cyan-400/30 rounded text-[8px] font-bold text-cyan-400 hover:bg-cyan-400 hover:text-white transition-all uppercase flex items-center justify-center gap-2 mt-1"
+                               >
+                                  <Database size={10} /> DATA OPERASI LN
+                               </button>
+                           </div>
+                        </div>
                     </div>
 
-                    {/* Unit Registry */}
-                    <div className="space-y-4">
-                       <div className="flex justify-between items-center border-l-2 border-red-600 pl-2">
-                          <h5 className="text-xs font-bold text-tactical-muted uppercase tracking-widest">Registrasi Unit Alutsista</h5>
-                          {/* Unit Search */}
-                          <div className="relative max-w-[200px]">
-                             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-tactical-muted" />
-                             <input 
-                               type="text" 
-                               placeholder="Cari S/N atau Status..."
-                               value={modalSearchQuery}
-                               onChange={(e) => setModalSearchQuery(e.target.value)}
-                               className="bg-black/40 border border-tactical-green/20 rounded py-1 pl-7 pr-2 text-[10px] text-tactical-text focus:outline-none focus:border-tactical-green w-full"
-                             />
-                          </div>
-                       </div>
-                       <div className="space-y-2">
-                          {[
-                            { sn: "ALT-REG-001/V2", status: "Baik" },
-                            { sn: "ALT-REG-002/V2", status: "Baik" },
-                            { sn: "ALT-REG-003/V2", status: "Perbaikan" },
-                          ].filter(u => 
-                            u.sn.toLowerCase().includes(modalSearchQuery.toLowerCase()) ||
-                            u.status.toLowerCase().includes(modalSearchQuery.toLowerCase())
-                          ).map((unit, idx) => (
-                             <div key={idx} className="flex justify-between items-center p-3 bg-tactical-bg border border-tactical-border rounded group hover:border-tactical-green/30 transition-all">
-                                <div className="space-y-1">
-                                   <div className="text-[11px] font-mono text-tactical-text">{unit.sn}</div>
-                                   <div className="text-[9px] font-bold text-tactical-muted uppercase tracking-wider">{selectedAsset.name}</div>
-                                </div>
-                                <div className={cn(
-                                   "px-3 py-1 rounded text-[9px] font-black uppercase tracking-widest",
-                                   unit.status === 'Baik' ? "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30" :
-                                   unit.status === 'Perbaikan' ? "bg-yellow-500/20 text-yellow-500 border border-yellow-500/30" :
-                                   "bg-red-600/20 text-red-500 border border-red-600/30"
-                                )}>
-                                   {unit.status}
-                                </div>
-                             </div>
-                          ))}
-                       </div>
-                    </div>
+
 
                     <button 
                       onClick={() => {
                         if (detailReturnModal) {
-                          setActiveModal(detailReturnModal as any);
+                          setActiveModal(detailReturnModal);
                         } else {
-                          setActiveModal('ALUTSISTA');
+                          setActiveModal('LOGISTIK');
                         }
                       }}
-                      className={cn(
-                        "text-xs font-bold flex items-center gap-2 mt-6 pt-4 border-t border-tactical-border",
-                        detailReturnModal === 'OPERASI_DETAIL' ? "text-tactical-red/70 hover:text-tactical-red" : "text-tactical-muted hover:text-tactical-green"
-                      )}
+                      className="text-xs font-bold flex items-center gap-2 mt-6 pt-4 border-t border-tactical-border text-tactical-muted hover:text-tactical-green transition-all"
                     >
-                      &larr; KEMBALI KE {detailReturnModal === 'OPERASI_DETAIL' ? 'DETAIL OPERASI' : 'DAFTAR ALUTSISTA'}
+                      &larr; KEMBALI KE {detailReturnModal || 'DAFTAR LOGISTIK'}
                     </button>
                   </div>
                 ) : activeModal === 'OPERASI_DETAIL' && selectedOperation ? (
                   <div className="space-y-6 pb-4">
                     {/* Operation Tabs */}
                     <div className="flex border-b border-tactical-border">
-                        {['Informasi', 'Personel', 'Komunikasi'].map((tab) => (
+                        {['Informasi', 'Personel', 'Logistik'].map((tab) => (
                           <div 
                             key={tab} 
                             onClick={() => setOpActiveTab(tab)}
                             className={cn(
                               "px-6 py-3 text-xs font-bold uppercase tracking-widest cursor-pointer transition-all",
                               opActiveTab === tab 
-                                ? (activeModal === 'OPERASI_DETAIL' ? "text-tactical-red border-b-2 border-tactical-red bg-tactical-red/5" : "text-tactical-green border-b-2 border-tactical-green bg-tactical-green/5")
+                                ? (selectedOperation.category === 'DN' ? "text-blue-500 border-b-2 border-blue-500 bg-blue-500/5" : "text-cyan-400 border-b-2 border-cyan-400 bg-cyan-400/5")
                                 : "text-tactical-muted hover:text-tactical-text"
                             )}
                           >
-                            {tab} {tab === 'Personel' && "(2)"}
+                            {tab} {tab === 'Personel' ? `(${opAssignments.length})` : tab === 'Logistik' ? `(${opAssets.length})` : ""}
                           </div>
                         ))}
                     </div>
@@ -1243,9 +1665,13 @@ export default function MapComponent({
                          {/* Badges & Action */}
                          <div className="flex justify-between items-center">
                             <div className="flex gap-2">
-                               <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-[10px] font-bold uppercase rounded">Berlangsung</span>
-                               <span className="px-3 py-1 bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 text-[10px] font-bold uppercase rounded">Prioritas: Sedang</span>
-                               <span className="px-3 py-1 bg-blue-500/10 border border-blue-500/30 text-blue-500 text-[10px] font-bold uppercase rounded">Latihan</span>
+                               <span className={cn(
+                                  "px-3 py-1 border text-[10px] font-bold uppercase rounded",
+                                  selectedOperation.category === 'DN' ? "bg-blue-500/10 border-blue-500/30 text-blue-500" : "bg-cyan-400/10 border-cyan-400/30 text-cyan-400"
+                                )}>
+                                  {selectedOperation.category === 'DN' ? 'DALAM NEGERI' : 'LUAR NEGERI'}
+                                </span>
+                                <span className="px-3 py-1 bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 text-[10px] font-bold uppercase rounded">Status: {selectedOperation.status}</span>
                             </div>
 
                             {/* Lihat Lokasi Button */}
@@ -1270,12 +1696,37 @@ export default function MapComponent({
                             </button>
                          </div>
 
-                         {/* Description */}
-                         <div className="p-4 bg-tactical-bg border border-tactical-border rounded-lg">
-                            <p className="text-xs text-tactical-muted leading-relaxed">
-                               Latihan gabungan operasi khusus dan anti-teror di wilayah Yogyakarta untuk meningkatkan kemampuan respons cepat dan koordinasi antar unit.
-                            </p>
-                         </div>
+                          {/* Tactical Communication Actions */}
+                          <div className="p-4 bg-black/40 border border-tactical-border rounded-lg space-y-4">
+                             <div className="text-[10px] font-bold text-tactical-muted uppercase tracking-widest flex items-center gap-2">
+                                <Shield className="w-3 h-3 text-tactical-green" />
+                                KOMUNIKASI TAKTIS SECURE
+                             </div>
+                             <div className="grid grid-cols-2 gap-4">
+                                <button 
+                                  onClick={() => router.push(`/komunikasi/chat?opId=${selectedOperation.id}`)}
+                                  className="flex items-center justify-center gap-3 py-3 bg-tactical-green/10 border border-tactical-green/30 rounded text-xs font-black text-tactical-green hover:bg-tactical-green hover:text-black transition-all shadow-[0_0_15px_rgba(57,255,20,0.1)] group"
+                                >
+                                   <MessageSquare size={16} className="group-hover:scale-110 transition-transform" />
+                                   BUKA CHAT OPERASI
+                                </button>
+                                <button 
+                                  onClick={() => router.push(`/komunikasi/vcon?opId=${selectedOperation.id}`)}
+                                  className="flex items-center justify-center gap-3 py-3 bg-tactical-red/10 border border-tactical-red/30 rounded text-xs font-black text-tactical-red hover:bg-tactical-red hover:text-white transition-all shadow-[0_0_15px_rgba(255,51,51,0.1)] group"
+                                >
+                                   <Video size={16} className="group-hover:scale-110 transition-transform" />
+                                   INITIALIZE VCON
+                                </button>
+                             </div>
+                          </div>
+
+                          {/* Description */}
+                          <div className="p-4 bg-tactical-bg border border-tactical-border rounded-lg">
+                             <div className="text-[10px] text-tactical-muted font-mono uppercase mb-2">OBJEKTIF OPERASI</div>
+                             <p className="text-xs text-tactical-text leading-relaxed">
+                                {selectedOperation.objective || selectedOperation.description || "Tidak ada deskripsi operasi."}
+                             </p>
+                          </div>
 
                          {/* Grid Info */}
                          <div className="grid grid-cols-2 gap-4">
@@ -1303,74 +1754,47 @@ export default function MapComponent({
 
                          {/* Objective */}
                          <div className="p-4 bg-tactical-bg border border-tactical-border rounded-lg space-y-2">
-                            <div className="text-[10px] font-bold text-tactical-muted uppercase tracking-widest">Objektif Operasi</div>
-                            <p className="text-xs text-tactical-text">Meningkatkan kemampuan respons cepat dan koordinasi dalam skenario anti-teror</p>
-                         </div>
+                             <div className="text-[10px] font-bold text-tactical-muted uppercase tracking-widest">Komandan Lapangan</div>
+                             <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded bg-tactical-red/10 border border-tactical-red/30 flex items-center justify-center">
+                                   <Users size={20} className="text-tactical-red" />
+                                </div>
+                                <div>
+                                  <div className="text-sm font-bold text-tactical-text uppercase">{selectedOperation.commander_name || selectedOperation.commander || "TBA"}</div>
+                                  <div className="text-[10px] text-tactical-muted uppercase font-mono">{selectedOperation.commander_rank || "DAN-TIM / SAT-81 GULTOR"}</div>
+                                </div>
+                             </div>
+                          </div>
 
                          {/* Resources Summary */}
                          <div className="grid grid-cols-2 gap-4">
                              <div className="p-4 bg-tactical-bg border border-tactical-border rounded-lg space-y-1">
                                 <div className="flex items-center gap-2 text-tactical-muted">
-                                   <Users size={14} className={activeModal === 'OPERASI_DETAIL' ? "text-tactical-red" : "text-tactical-green"} />
+                                   <Users size={14} className="text-tactical-red" />
                                    <span className="text-[10px] font-bold uppercase">Personel</span>
                                 </div>
-                                <div className="text-xl font-black text-tactical-text">2</div>
+                                <div className="text-xl font-black text-tactical-text">{opAssignments.length}</div>
                                 <div className="text-[9px] text-tactical-muted uppercase tracking-wider">Orang di-deploy</div>
                              </div>
                              <div className="p-4 bg-tactical-bg border border-tactical-border rounded-lg space-y-1">
                                 <div className="flex items-center gap-2 text-tactical-muted">
-                                   <Target size={14} className={activeModal === 'OPERASI_DETAIL' ? "text-tactical-red" : "text-tactical-green"} />
+                                   <Target size={14} className="text-tactical-red" />
                                    <span className="text-[10px] font-bold uppercase">Logistik</span>
                                 </div>
-                                <div className="text-xl font-black text-tactical-text">3</div>
+                                <div className="text-xl font-black text-tactical-text">{opAssets.length}</div>
                                 <div className="text-[9px] text-tactical-muted uppercase tracking-wider">Item Terdeploy</div>
                              </div>
                          </div>
 
-                         {/* Logistics List */}
-                         <div className="p-4 bg-tactical-bg border border-tactical-border rounded-lg space-y-4">
-                            <div className="text-[10px] font-bold text-tactical-muted uppercase tracking-widest">Logistik Terdeploy</div>
-                            <div className="space-y-2">
-                               {[
-                                 { name: "Amunisi Latihan", qty: "10000 butir", type: 'AMUNISI' },
-                                 { name: "Granat Asap", qty: "50 unit", type: 'GRANAT' },
-                                 { name: "Senapan Serbu SS2-V1", qty: "2 unit", type: 'SENJATA' }
-                               ].map((item, idx) => (
-                                 <div 
-                                   key={idx} 
-                                   onClick={() => {
-                                      setSelectedWeapon({
-                                        name: item.name,
-                                        qty: item.qty,
-                                        production: "PT Pindad (Persero)",
-                                        year: "2022"
-                                      });
-                                      setDetailReturnModal('OPERASI_DETAIL');
-                                      setActiveModal('SENJATA_DETAIL');
-                                   }}
-                                   className="flex justify-between items-center p-3 bg-black/40 border border-tactical-border rounded-md hover:border-tactical-green/50 transition-all cursor-pointer group"
-                                 >
-                                    <div>
-                                       <div className="text-xs font-bold text-tactical-text group-hover:text-tactical-green transition-colors uppercase tracking-wider">{item.name}</div>
-                                       <div className="text-[10px] text-tactical-muted">Jumlah: {item.qty}</div>
-                                    </div>
-                                    <ChevronRight size={14} className="text-tactical-muted group-hover:text-tactical-green" />
-                                 </div>
-                               ))}
-                            </div>
-                         </div>
                       </div>
                     ) : opActiveTab === 'Personel' ? (
                       <div className="space-y-4">
                         <div className="flex justify-between items-center">
                           <h5 className="text-xs font-bold text-tactical-muted uppercase tracking-widest border-l-2 border-red-600 pl-2">Personel Terdeploy</h5>
-                          <div className="text-[10px] text-tactical-green font-mono">2 AKTIF</div>
+                          <div className="text-[10px] text-tactical-green font-mono">{opAssignments.length} AKTIF</div>
                         </div>
                         <div className="grid grid-cols-1 gap-3">
-                          {[
-                            { name: "Fachry Dwiyansyah", rank: "Lettu Inf", nrp: "11120034450889", role: "Dan-Tim", photo: "https://i.pravatar.cc/150?u=fachry" },
-                            { name: "Budi Setiawan", rank: "Serda", nrp: "21130045560990", role: "Wadan-Tim", photo: "https://i.pravatar.cc/150?u=budi" }
-                          ].map((person, idx) => (
+                           {opAssignments.length > 0 ? opAssignments.map((person, idx) => (
                             <div 
                               key={idx} 
                               onClick={() => {
@@ -1378,195 +1802,466 @@ export default function MapComponent({
                                 setDetailReturnModal('OPERASI_DETAIL');
                                 setActiveModal('PERSONNEL_DETAIL');
                               }}
-                              className="flex items-center gap-4 p-4 bg-black/40 border border-tactical-border rounded-lg hover:border-tactical-green/50 transition-all cursor-pointer group"
+                              className="flex items-center gap-6 p-5 bg-black/40 border border-tactical-border rounded-lg hover:border-tactical-green/50 transition-all cursor-pointer group shadow-lg"
                             >
-                              <div className="w-12 h-12 rounded bg-tactical-dark border border-tactical-border overflow-hidden">
-                                <img src={person.photo} alt={person.name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                              <div className="w-16 h-16 rounded bg-tactical-dark border border-tactical-border overflow-hidden shadow-[0_0_15px_rgba(57,255,20,0.1)]">
+                                <img 
+                                  src={person.photo || `https://i.pravatar.cc/150?u=${person.id || idx}`} 
+                                  alt={person.name} 
+                                  className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" 
+                                />
                               </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-0.5">
-                                    <div className="text-sm font-bold text-tactical-text group-hover:text-tactical-green transition-colors uppercase tracking-wider">{person.rank} {person.name}</div>
-                                    <div className="px-1.5 py-0.5 bg-tactical-green/10 border border-tactical-green/30 rounded text-[8px] font-black text-tactical-green uppercase tracking-widest leading-none">{person.role}</div>
-                                  </div>
-                                  <div className="text-[10px] text-tactical-muted font-mono">{person.nrp}</div>
-                                </div>
-
-                              {/* Communication Buttons */}
-                              <div className="flex items-center gap-2">
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                  }}
-                                  className="flex items-center gap-2 px-3 py-1.5 bg-tactical-green/10 border border-tactical-green/20 rounded text-[9px] font-black text-tactical-green hover:bg-tactical-green hover:text-black transition-all group/btn"
-                                >
-                                  <MessageSquare size={12} className="group-hover/btn:scale-110 transition-transform" />
-                                  CHAT
-                                </button>
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                  }}
-                                  className="flex items-center gap-2 px-3 py-1.5 bg-tactical-red/10 border border-tactical-red/20 rounded text-[9px] font-black text-tactical-red hover:bg-tactical-red hover:text-white transition-all shadow-[0_0_15px_rgba(255,51,51,0.1)] group/btn"
-                                >
-                                  <Video size={12} className="group-hover/btn:scale-110 transition-transform" />
-                                  VCON
-                                </button>
+                              <div className="flex-1">
+                                <div className="text-sm font-bold text-tactical-text group-hover:text-tactical-green transition-colors uppercase tracking-widest">{person.name}</div>
+                                <div className="text-xs text-tactical-muted uppercase font-mono mt-1 font-bold">{person.rank || 'PERSONEL'} / {person.nrp || 'NO NRP'}</div>
+                                <div className="text-xs text-tactical-green mt-2 font-black tracking-widest">{person.role || 'GELAR OPERASI'}</div>
                               </div>
-                              <div className="text-right">
-                                <ChevronRight size={14} className="text-tactical-muted ml-auto" />
-                              </div>
+                              <ChevronRight size={20} className="text-tactical-muted group-hover:text-tactical-green transition-all" />
                             </div>
-                          ))}
+                          )) : (
+                            <div className="text-[10px] text-tactical-muted font-mono italic p-4 text-center">Belum ada personel terdeploy untuk operasi ini.</div>
+                          )}
                         </div>
                       </div>
-                    ) : (
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[400px]">
-                            {/* CHAT CARD */}
-                            <div className="flex flex-col bg-black/40 border border-tactical-border rounded-lg overflow-hidden">
-                              <div className="p-3 bg-tactical-green/10 border-b border-tactical-green/30 flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                  <MessageSquare size={14} className="text-tactical-green" />
-                                  <span className="text-[11px] font-black uppercase tracking-widest text-tactical-text">Tactical Chat</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                                  <span className="text-[9px] font-mono text-emerald-500">SECURE</span>
-                                </div>
-                              </div>
-                              <div className="flex-1 p-4 overflow-y-auto space-y-4 custom-scrollbar">
-                                {[
-                                  { sender: "DANTIM", text: "Melaporkan posisi di koordinat -1.740, 103.652. Situasi kondusif.", time: "14:20" },
-                                  { sender: "PUSKODAL", text: "Diterima. Lanjutkan pemantauan di Sektor A.", time: "14:22" },
-                                  { sender: "DANTIM", text: "Visual target terkonfirmasi. Menunggu instruksi selanjutnya.", time: "14:25" }
-                                ].map((msg, i) => (
-                                  <div key={i} className={cn(
-                                    "max-w-[85%] space-y-1",
-                                    msg.sender === 'PUSKODAL' ? "ml-auto" : ""
-                                  )}>
-                                    <div className="flex items-center gap-2">
-                                      <span className={cn(
-                                        "text-[9px] font-black uppercase tracking-tighter",
-                                        msg.sender === 'PUSKODAL' ? "text-tactical-green" : "text-yellow-500"
-                                      )}>{msg.sender}</span>
-                                      <span className="text-[8px] text-tactical-muted font-mono">{msg.time}</span>
-                                    </div>
-                                    <div className={cn(
-                                      "p-3 text-[11px] rounded-lg",
-                                      msg.sender === 'PUSKODAL' ? "bg-tactical-green/20 border border-tactical-green/30 text-tactical-text" : "bg-white/5 border border-white/10 text-tactical-muted"
-                                    )}>
-                                      {msg.text}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                              <div className="p-3 bg-black/60 border-t border-tactical-border">
-                                <div className="flex gap-2">
-                                  <input 
-                                    type="text" 
-                                    placeholder="Ketik pesan taktis..."
-                                    className="flex-1 bg-tactical-bg border border-tactical-border rounded px-3 py-1.5 text-[10px] text-tactical-text focus:outline-none focus:border-tactical-green"
-                                  />
-                                  <button className="px-3 py-1.5 bg-tactical-green/20 border border-tactical-green text-tactical-green rounded text-[10px] font-black hover:bg-tactical-green hover:text-black transition-all">
-                                    SEND
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* VCON CARD */}
-                            <div className="flex flex-col bg-black/40 border border-tactical-border rounded-lg overflow-hidden">
-                              <div className="p-3 bg-tactical-red/10 border-b border-tactical-red/30 flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                  <Video size={14} className="text-tactical-red" />
-                                  <span className="text-[11px] font-black uppercase tracking-widest text-tactical-text">VCON System</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-tactical-red animate-pulse"></div>
-                                  <span className="text-[9px] font-mono text-tactical-red">LIVE</span>
-                                </div>
-                              </div>
-                              <div className="flex-1 relative bg-tactical-dark overflow-hidden group">
-                                {/* Tactical Camera Feed Simulation */}
-                                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1590233465191-100230230230?auto=format&fit=crop&q=80')] bg-cover bg-center grayscale opacity-40 group-hover:grayscale-0 transition-all duration-700"></div>
-                                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
-                                
-                                {/* Overlay UI */}
-                                <div className="absolute inset-4 flex flex-col justify-between pointer-events-none">
-                                  <div className="flex justify-between items-start">
-                                    <div className="p-2 border-l-2 border-t-2 border-tactical-red/60 space-y-1">
-                                      <div className="text-[8px] font-mono text-tactical-red">CAM-01 / SECTOR-P</div>
-                                      <div className="text-[10px] font-black text-white">RECON-ALPHA</div>
-                                    </div>
-                                    <div className="text-right">
-                                      <div className="text-[8px] font-mono text-emerald-500">SIGNAL: 98%</div>
-                                      <div className="text-[8px] font-mono text-tactical-muted">LATENCY: 12ms</div>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex justify-center">
-                                    <div className="w-32 h-32 border border-tactical-red/20 rounded-full flex items-center justify-center">
-                                      <div className="w-1 h-1 bg-tactical-red rounded-full"></div>
-                                      <div className="absolute w-24 h-0.5 bg-tactical-red/10 rotate-45 animate-pulse"></div>
-                                      <div className="absolute w-24 h-0.5 bg-tactical-red/10 -rotate-45 animate-pulse"></div>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex justify-between items-end">
-                                    <div className="text-[8px] font-mono text-tactical-muted">
-                                      COORD: -1.740961, 103.652457<br />
-                                      ELEV: 124m MSL
-                                    </div>
-                                    <div className="flex gap-1">
-                                      <div className="w-1 h-4 bg-emerald-500/40"></div>
-                                      <div className="w-1 h-2 bg-emerald-500/40"></div>
-                                      <div className="w-1 h-6 bg-emerald-500/40"></div>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Controls Overlay */}
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 backdrop-blur-sm transition-all duration-300 pointer-events-auto">
-                                  <button className="px-6 py-2 bg-tactical-red border border-tactical-red text-white text-[10px] font-black rounded tracking-widest hover:bg-white hover:text-black transition-all shadow-[0_0_20px_rgba(255,51,51,0.4)]">
-                                    JOIN VCON CHANNEL
-                                  </button>
-                                </div>
-                              </div>
-                              <div className="p-3 bg-black/60 border-t border-tactical-border flex items-center justify-between">
-                                <div className="flex -space-x-2">
-                                  <img src="https://i.pravatar.cc/150?u=1" className="w-6 h-6 rounded-full border border-tactical-bg" />
-                                  <img src="https://i.pravatar.cc/150?u=2" className="w-6 h-6 rounded-full border border-tactical-bg" />
-                                  <div className="w-6 h-6 rounded-full bg-tactical-border flex items-center justify-center text-[8px] font-bold text-tactical-muted">+3</div>
-                                </div>
-                                <button className="text-[9px] font-bold text-tactical-red hover:underline">VIEW ALL PARTICIPANTS</button>
-                              </div>
-                            </div>
+                    ) : opActiveTab === 'Logistik' ? (
+                       <div className="space-y-4">
+                         <div className="flex justify-between items-center">
+                            <h5 className="text-xs font-bold text-tactical-muted uppercase tracking-widest border-l-2 border-tactical-green pl-2">Logistik Terdeploy</h5>
+                            <div className="text-[10px] text-tactical-green font-mono">{opAssets.length} ITEM AKTIF</div>
                           </div>
-                    )}
+                          
+                          <div className="overflow-x-auto border border-tactical-border rounded-lg bg-black/40">
+                            <table className="w-full text-left border-collapse">
+                              <thead>
+                                <tr className="border-b border-tactical-border bg-tactical-red/5">
+                                  <th className="p-4 text-xs font-black text-tactical-red uppercase tracking-widest">No</th>
+                                  <th className="p-4 text-xs font-black text-tactical-red uppercase tracking-widest">Nama Barang</th>
+                                  <th className="p-4 text-xs font-black text-tactical-red uppercase tracking-widest text-center">Kategori</th>
+                                  <th className="p-4 text-xs font-black text-tactical-red uppercase tracking-widest text-center">Jumlah</th>
+                                  <th className="p-4 text-xs font-black text-tactical-red uppercase tracking-widest text-right">Aksi</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-tactical-border/30">
+                                 {opAssets.length > 0 ? opAssets.map((item, idx) => (
+                                  <tr key={idx} className="hover:bg-tactical-red/5 transition-colors group">
+                                    <td className="p-4 text-sm font-mono text-tactical-muted">{idx + 1}</td>
+                                    <td className="p-4">
+                                      <div className="text-sm font-bold text-tactical-text uppercase tracking-tight">{item.asset_name || item.name || item.item_name}</div>
+                                    </td>
+                                    <td className="p-4 text-center">
+                                      <span className="px-3 py-1 bg-tactical-red/10 border border-tactical-red/30 rounded text-[10px] font-black text-tactical-red uppercase tracking-wider">
+                                        {item.category || item.item_category || 'LOGISTIK'}
+                                      </span>
+                                    </td>
+                                    <td className="p-4 text-center text-sm font-black text-tactical-red font-mono">
+                                      {item.qty || item.quantity} {item.unit || 'Unit'}
+                                    </td>
+                                    <td className="p-4 text-right">
+                                      <button 
+                                        onClick={() => {
+                                          setSelectedAsset({
+                                            ...item,
+                                            name: item.asset_name || item.name || item.item_name
+                                          });
+                                          setDetailReturnModal('OPERASI_DETAIL');
+                                          setActiveModal('LOGISTIK_DETAIL');
+                                        }}
+                                        className="p-2 hover:bg-tactical-red/20 rounded-md transition-all text-tactical-muted hover:text-tactical-red bg-tactical-red/5 border border-tactical-red/20"
+                                      >
+                                        <Eye size={18} />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                )) : (
+                                  <tr>
+                                    <td colSpan={5} className="p-10 text-center text-[10px] text-tactical-muted font-mono italic uppercase">
+                                      Belum ada logistik terdeploy untuk operasi ini.
+                                    </td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                       </div>
+                     ) : null}
+
+                     <button 
+                       onClick={() => {
+                         setActiveModal('KEGIATAN');
+                       }}
+                       className="text-xs font-bold flex items-center gap-2 mt-6 pt-4 border-t border-tactical-border text-tactical-muted hover:text-tactical-green transition-all"
+                     >
+                       &larr; KEMBALI KE DAFTAR OPERASI
+                     </button>
+                   </div>
+                ) : activeModal === 'INTEL_DETAIL' && selectedIntel ? (
+                  <div className="space-y-8 pb-4">
+                    <div className="bg-tactical-bg p-6 rounded-lg border border-tactical-cyan/20 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-4">
+                        <div className="flex items-center gap-2">
+                           <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: getIntelColor(selectedIntel.threat_level) }}></div>
+                           <span className="text-[10px] font-black tracking-widest" style={{ color: getIntelColor(selectedIntel.threat_level) }}>{selectedIntel.threat_level}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="mb-6">
+                        <div className="text-[10px] text-tactical-cyan font-mono uppercase tracking-widest mb-1">INTEL REPORT ID: {selectedIntel.id}</div>
+                        <h4 className="text-2xl font-black text-tactical-text uppercase tracking-tight">{selectedIntel.title}</h4>
+                        <div className="flex items-center gap-4 mt-2">
+                           <div className="flex items-center gap-1 text-[10px] text-tactical-muted uppercase font-mono">
+                              <MapPin size={10} className="text-tactical-cyan" /> {selectedIntel.location_tag}
+                           </div>
+                           <div className="flex items-center gap-1 text-[10px] text-tactical-muted uppercase font-mono">
+                              <Clock size={10} className="text-tactical-cyan" /> {new Date(selectedIntel.created_at).toLocaleString()}
+                           </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-4">
+                           <div className="p-4 bg-black/40 border border-tactical-border rounded">
+                              <div className="text-[10px] text-tactical-muted font-mono uppercase mb-2">ISI LAPORAN</div>
+                              <div className="text-sm text-tactical-text leading-relaxed font-medium">
+                                 {selectedIntel.content}
+                              </div>
+                           </div>
+                           
+                           {/* New Fields */}
+                           <div className="grid grid-cols-1 gap-4">
+                              <div className="p-3 bg-black/20 border border-tactical-border/50 rounded">
+                                 <div className="text-[9px] text-tactical-muted font-mono uppercase mb-1">LAPSUS</div>
+                                 <div className="text-xs text-tactical-text leading-relaxed font-mono italic">
+                                    {selectedIntel.lapsus || "TIDAK ADA DATA"}
+                                 </div>
+                              </div>
+                              <div className="p-3 bg-black/20 border border-tactical-border/50 rounded">
+                                 <div className="text-[9px] text-tactical-muted font-mono uppercase mb-1">LAPORAN PERIODIK</div>
+                                 <div className="text-xs text-tactical-text leading-relaxed font-mono italic">
+                                    {selectedIntel.laporan_periodik || "TIDAK ADA DATA"}
+                                 </div>
+                              </div>
+                              <div className="p-3 bg-black/20 border border-tactical-border/50 rounded">
+                                 <div className="text-[9px] text-tactical-muted font-mono uppercase mb-1">PREDIKSI ANCAMAN</div>
+                                 <div className="text-xs text-tactical-text leading-relaxed font-mono italic">
+                                    {selectedIntel.prediksi_ancaman || "TIDAK ADA DATA"}
+                                 </div>
+                              </div>
+                           </div>
+                           <div className="flex gap-4">
+                              <div className="flex-1 p-3 bg-tactical-cyan/5 border border-tactical-cyan/20 rounded">
+                                 <div className="text-[9px] text-tactical-muted font-mono uppercase mb-1">SUMBER DATA</div>
+                                 <div className="text-xs font-bold text-tactical-text">HUMINT / OSINT</div>
+                              </div>
+                              <div className="flex-1 p-3 bg-tactical-cyan/5 border border-tactical-cyan/20 rounded">
+                                 <div className="text-[9px] text-tactical-muted font-mono uppercase mb-1">KLASIFIKASI</div>
+                                 <div className="text-xs font-bold text-tactical-red">RAHASIA</div>
+                              </div>
+                           </div>
+                        </div>
+
+                        <div className="space-y-4">
+                           <div className="h-48 bg-tactical-dark rounded border border-tactical-border relative overflow-hidden group">
+                              <img 
+                                src="https://images.unsplash.com/photo-1590233465191-100230230230?auto=format&fit=crop&q=80" 
+                                className="w-full h-full object-cover opacity-40 group-hover:opacity-60 transition-all"
+                                alt="Satellite"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/40"></div>
+                              <div className="absolute bottom-3 left-3">
+                                 <div className="text-[8px] font-mono text-tactical-cyan">SATELLITE RECONNAISSANCE</div>
+                                 <div className="text-[10px] font-black text-white">GRID: {selectedIntel.coordinates}</div>
+                              </div>
+                              <div className="absolute inset-0 border border-tactical-cyan/10 pointer-events-none"></div>
+                           </div>
+                           <button className="w-full py-3 bg-tactical-cyan/20 border border-tactical-cyan/40 text-tactical-cyan text-[10px] font-black tracking-widest uppercase hover:bg-tactical-cyan hover:text-black transition-all">
+                              LIHAT SEBARAN ANCAMAN
+                           </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                ) : null}
+                ) : activeModal === 'UNIT_DETAIL' && selectedEntity ? (
+                  <div className="space-y-8 pb-4">
+                    <div className="bg-tactical-bg p-4 rounded-lg border border-tactical-green/20 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-4">
+                        <div className="flex items-center gap-2">
+                           <div className="text-right">
+                              <div className="text-[9px] text-tactical-muted font-mono uppercase leading-none">Status Kesiapan</div>
+                              <div className="text-[10px] font-black text-tactical-green uppercase tracking-widest mt-1">SIAP TEMPUR / {selectedEntity.status || 'ACTIVE'}</div>
+                           </div>
+                           <div className="w-8 h-8 rounded-full bg-tactical-green/10 border border-tactical-green/30 flex items-center justify-center">
+                              <Shield className="text-tactical-green w-4 h-4 animate-pulse" />
+                           </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col md:flex-row gap-6 items-center">
+                        <div className="w-20 h-20 rounded-full border-2 border-tactical-green/30 bg-black/40 p-3 flex items-center justify-center shadow-[0_0_20px_rgba(0,255,0,0.1)]">
+                           <img src={selectedEntity.logo_url || "/logo_puskodal.png"} className="w-full h-full object-contain" />
+                        </div>
+                        <div className="flex-1 pt-0">
+                           <div className="text-[9px] text-tactical-green font-mono uppercase tracking-[0.3em] mb-0.5">{selectedEntity.unit_code || 'U-10'}</div>
+                           <h4 className="text-xl font-black text-tactical-text uppercase tracking-tight leading-none mb-3">{selectedEntity.unit_name || selectedEntity.name}</h4>
+                           
+                           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-3">
+                              <div className="space-y-0.5">
+                                 <div className="text-[8px] text-tactical-muted uppercase font-bold tracking-widest">Komandan</div>
+                                 <div className="text-[10px] font-bold text-tactical-text uppercase">{selectedEntity.commander_rank} {selectedEntity.commander_name || 'N/A'}</div>
+                              </div>
+                              <div className="space-y-0.5">
+                                 <div className="text-[8px] text-tactical-muted uppercase font-bold tracking-widest">NRP / ID</div>
+                                 <div className="text-[10px] font-bold text-tactical-green font-mono">{selectedEntity.commander_nrp || 'NO NRP'}</div>
+                              </div>
+                              <div className="space-y-0.5">
+                                 <div className="text-[8px] text-tactical-muted uppercase font-bold tracking-widest">Kekuatan</div>
+                                 <div className="text-[10px] font-bold text-tactical-text">{selectedEntity.strength || unitPersonnel.length} PERS</div>
+                              </div>
+                              <div className="space-y-0.5">
+                                 <div className="text-[8px] text-tactical-muted uppercase font-bold tracking-widest">Lokasi Markas</div>
+                                 <div className="text-[10px] font-bold text-tactical-text uppercase truncate max-w-[150px]">{selectedEntity.location}</div>
+                              </div>
+                              <div className="space-y-0.5">
+                                 <div className="text-[8px] text-tactical-muted uppercase font-bold tracking-widest">Operasi DN</div>
+                                 <div className="text-[10px] font-bold text-blue-500">{unitActivities.filter(a => a.category === 'DN' || a.type === 'DALAM_NEGERI').length} TUGAS</div>
+                              </div>
+                              <div className="space-y-0.5">
+                                 <div className="text-[8px] text-tactical-muted uppercase font-bold tracking-widest">Operasi LN</div>
+                                 <div className="text-[10px] font-bold text-cyan-400">{unitActivities.filter(a => a.category === 'LN' || a.type === 'LUAR_NEGERI').length} TUGAS</div>
+                              </div>
+                           </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                       <div className="tactical-glass p-5 rounded-lg border border-tactical-border/50">
+                          <div className="flex items-center justify-between mb-4">
+                             <h5 className="text-[10px] font-black text-tactical-muted uppercase tracking-widest">Ringkasan Operasional</h5>
+                             <Activity size={14} className="text-tactical-green" />
+                          </div>
+                          <div className="space-y-4">
+                             <div className="flex justify-between items-end border-b border-tactical-border/30 pb-2">
+                                <span className="text-[10px] text-tactical-muted uppercase">Personel Siap</span>
+                                <span className="text-sm font-bold text-tactical-green">100%</span>
+                             </div>
+                             <div className="flex justify-between items-end border-b border-tactical-border/30 pb-2">
+                                <span className="text-[10px] text-tactical-muted uppercase">Alutsista Tersedia</span>
+                                <span className="text-sm font-bold text-tactical-green">{unitLogistics.length} ITEMS</span>
+                             </div>
+                             <div className="flex justify-between items-end border-b border-tactical-border/30 pb-2">
+                                <span className="text-[10px] text-tactical-muted uppercase">Operasi Berjalan</span>
+                                <span className="text-sm font-bold text-tactical-text">{unitActivities.length} AKTIF</span>
+                             </div>
+                          </div>
+                       </div>
+                       
+                       <div className="tactical-glass p-5 rounded-lg border border-tactical-border/50 flex flex-col justify-between gap-4">
+                          <div className="text-[10px] font-black text-tactical-muted uppercase tracking-widest">Akses Cepat Data</div>
+                          <div className="flex gap-3">
+                             <button 
+                               onClick={() => router.push(`/messages?unit_id=${selectedEntity.id}`)} 
+                               className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-500/10 border border-blue-500/30 rounded hover:bg-blue-500/20 transition-all group"
+                             >
+                                <MessageSquare size={16} className="text-blue-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Chat Kesatuan</span>
+                             </button>
+                             <button 
+                               onClick={() => router.push(`/vcon?unit_id=${selectedEntity.id}`)} 
+                               className="flex-1 flex items-center justify-center gap-2 py-3 bg-cyan-500/10 border border-cyan-500/30 rounded hover:bg-cyan-500/20 transition-all group"
+                             >
+                                <Video size={16} className="text-cyan-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-[10px] font-black text-cyan-500 uppercase tracking-widest">Vcon Kesatuan</span>
+                             </button>
+                          </div>
+                          <div className="grid grid-cols-3 gap-3">
+                             <button onClick={() => setActiveModal('PERSONNEL')} className="flex flex-col items-center gap-2 p-3 bg-tactical-green/5 border border-tactical-green/20 rounded hover:bg-tactical-green/10 transition-all">
+                                <Users size={16} className="text-tactical-green" />
+                                <span className="text-[8px] font-bold uppercase">Personel</span>
+                             </button>
+                             <button onClick={() => setActiveModal('SENJATA')} className="flex flex-col items-center gap-2 p-3 bg-tactical-green/5 border border-tactical-green/20 rounded hover:bg-tactical-green/10 transition-all">
+                                <Target size={16} className="text-tactical-green" />
+                                <span className="text-[8px] font-bold uppercase">Senjata</span>
+                             </button>
+                             <button onClick={() => setActiveModal('LOGISTIK')} className="flex flex-col items-center gap-2 p-3 bg-tactical-green/5 border border-tactical-green/20 rounded hover:bg-tactical-green/10 transition-all">
+                                <Package size={16} className="text-tactical-green" />
+                                <span className="text-[8px] font-bold uppercase">Logistik</span>
+                             </button>
+                          </div>
+                       </div>
+                    </div>
+                  </div>
+                                 ) : activeModal === 'LOGISTIK_USAGE' && selectedAsset ? (
+                   <div className="space-y-6 pb-4">
+                     <div className="flex items-center justify-between border-b border-tactical-border pb-4">
+                        <div className="flex items-center gap-3">
+                           <div className={cn(
+                             "w-10 h-10 rounded border flex items-center justify-center bg-black/40",
+                             activeDistributionTab === 'KESATUAN' ? "border-tactical-red/30 text-tactical-red" :
+                             activeDistributionTab === 'OPS_DN' ? "border-blue-500/30 text-blue-500" :
+                             "border-cyan-400/30 text-cyan-400"
+                           )}>
+                              <Database size={20} />
+                           </div>
+                           <div>
+                              <div className="text-[10px] text-tactical-muted uppercase font-mono tracking-widest">DATA PEMAKAI LOGISTIK</div>
+                              <h4 className="text-xl font-black text-tactical-text uppercase tracking-tight">
+                                {activeDistributionTab === 'KESATUAN' ? 'KESATUAN / SATUAN' :
+                                 activeDistributionTab === 'OPS_DN' ? 'OPERASI DALAM NEGERI' :
+                                 'OPERASI LUAR NEGERI'}
+                              </h4>
+                           </div>
+                        </div>
+                        <div className="text-right">
+                           <div className="text-[10px] text-tactical-muted uppercase">TOTAL ASSET</div>
+                           <div className={cn(
+                             "text-2xl font-black",
+                             activeDistributionTab === 'KESATUAN' ? "text-tactical-red" :
+                             activeDistributionTab === 'OPS_DN' ? "text-blue-500" :
+                             "text-cyan-400"
+                           )}>
+                             {activeDistributionTab === 'KESATUAN' ? logisticsDistribution.kesatuan :
+                              activeDistributionTab === 'OPS_DN' ? logisticsDistribution.ops_dn :
+                              logisticsDistribution.ops_ln} Unit
+                           </div>
+                        </div>
+                     </div>
+
+                     <div className="overflow-x-auto border border-tactical-border rounded-lg bg-black/40">
+                        <table className="w-full text-left border-collapse">
+                           <thead>
+                               <tr className={cn(
+                                "border-b border-tactical-border",
+                                activeDistributionTab === 'KESATUAN' ? "bg-tactical-red/10" :
+                                activeDistributionTab === 'OPS_DN' ? "bg-blue-500/10" :
+                                "bg-cyan-400/10"
+                              )}>
+                                 <th className={cn(
+                                   "p-4 text-xs font-black uppercase tracking-widest",
+                                   activeDistributionTab === 'KESATUAN' ? "text-tactical-red" :
+                                   activeDistributionTab === 'OPS_DN' ? "text-blue-500" :
+                                   "text-cyan-400"
+                                 )}>No</th>
+                                 <th className={cn(
+                                   "p-4 text-xs font-black uppercase tracking-widest",
+                                   activeDistributionTab === 'KESATUAN' ? "text-tactical-red" :
+                                   activeDistributionTab === 'OPS_DN' ? "text-blue-500" :
+                                   "text-cyan-400"
+                                 )}>Nama Unit / Operasi</th>
+                                 <th className={cn(
+                                   "p-4 text-xs font-black uppercase tracking-widest text-center",
+                                   activeDistributionTab === 'KESATUAN' ? "text-tactical-red" :
+                                   activeDistributionTab === 'OPS_DN' ? "text-blue-500" :
+                                   "text-cyan-400"
+                                 )}>Status</th>
+                                 <th className={cn(
+                                   "p-4 text-xs font-black uppercase tracking-widest text-center",
+                                   activeDistributionTab === 'KESATUAN' ? "text-tactical-red" :
+                                   activeDistributionTab === 'OPS_DN' ? "text-blue-500" :
+                                   "text-cyan-400"
+                                 )}>Jumlah</th>
+                                 <th className={cn(
+                                   "p-4 text-xs font-black uppercase tracking-widest text-right",
+                                   activeDistributionTab === 'KESATUAN' ? "text-tactical-red" :
+                                   activeDistributionTab === 'OPS_DN' ? "text-blue-500" :
+                                   "text-cyan-400"
+                                 )}>Aksi</th>
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y divide-tactical-border/30">
+                              {(activeDistributionTab === 'KESATUAN' ? distributionDetails.units :
+                                activeDistributionTab === 'OPS_DN' ? distributionDetails.ops_dn :
+                                distributionDetails.ops_ln).length > 0 ? (
+                                (activeDistributionTab === 'KESATUAN' ? distributionDetails.units :
+                                 activeDistributionTab === 'OPS_DN' ? distributionDetails.ops_dn :
+                                 distributionDetails.ops_ln).map((usage, idx) => (
+                                   <tr key={idx} className="hover:bg-tactical-cyan/5 transition-colors group">
+                                     <td className="p-4 text-sm font-mono text-tactical-muted">{idx + 1}</td>
+                                     <td className="p-4 text-sm font-bold text-tactical-text uppercase tracking-tight">{usage.name}</td>
+                                     <td className="p-4 text-center">
+                                        <div className="flex items-center justify-center gap-2">
+                                           <div className={cn(
+                                             "w-2 h-2 rounded-full animate-pulse",
+                                             activeDistributionTab === 'KESATUAN' ? "bg-tactical-red" :
+                                             activeDistributionTab === 'OPS_DN' ? "bg-blue-500" :
+                                             "bg-cyan-400"
+                                           )}></div>
+                                           <span className="text-[10px] font-black text-tactical-text uppercase tracking-widest">AKTIF</span>
+                                        </div>
+                                     </td>
+                                     <td className={cn(
+                                       "p-4 text-center text-sm font-black font-mono",
+                                       activeDistributionTab === 'KESATUAN' ? "text-tactical-red" :
+                                       activeDistributionTab === 'OPS_DN' ? "text-blue-500" :
+                                       "text-cyan-400"
+                                     )}>
+                                        {usage.quantity} Unit
+                                     </td>
+                                     <td className="p-4 text-right">
+                                        <button 
+                                          onClick={() => {
+                                            if (usage.coordinates) {
+                                              const coords = usage.coordinates.split(',');
+                                              setHighlightedLocations([{
+                                                ...usage,
+                                                type: activeDistributionTab === 'KESATUAN' ? 'UNIT' : 
+                                                      activeDistributionTab === 'OPS_DN' ? 'DALAM_NEGERI' : 'LUAR_NEGERI'
+                                              }]);
+                                              if (onMarkerClick) onMarkerClick([parseFloat(coords[0]), parseFloat(coords[1])], 12);
+                                              setActiveModal(null);
+                                            }
+                                          }}
+                                          className={cn(
+                                            "flex items-center justify-center gap-2 px-4 py-2 rounded-md transition-all bg-black/40 border border-white/5 text-[10px] font-black uppercase tracking-widest whitespace-nowrap",
+                                            activeDistributionTab === 'KESATUAN' ? "hover:bg-tactical-red/20 text-tactical-red border-tactical-red/30" :
+                                            activeDistributionTab === 'OPS_DN' ? "hover:bg-blue-500/20 text-blue-500 border-blue-500/30" :
+                                            "hover:bg-cyan-400/20 text-cyan-400 border-cyan-400/30"
+                                          )}
+                                        >
+                                           LIHAT MAP
+                                        </button>
+                                     </td>
+                                  </tr>
+                                ))
+                              ) : (
+                                <tr>
+                                   <td colSpan={5} className="p-10 text-center text-tactical-muted text-[10px] uppercase font-mono italic">
+                                      Data penggunaan aset tidak ditemukan untuk kategori ini.
+                                   </td>
+                                </tr>
+                              )}
+                           </tbody>
+                        </table>
+                     </div>
+
+                     <button 
+                       onClick={() => {
+                         setActiveModal('LOGISTIK_DETAIL');
+                       }}
+                       className="text-xs font-bold flex items-center gap-2 mt-6 pt-4 border-t border-tactical-border text-tactical-muted hover:text-tactical-green transition-all"
+                     >
+                       &larr; KEMBALI KE DETAIL LOGISTIK
+                     </button>
+                   </div>
+                 ) : null}
               </div>
 
               {/* Modal Footer */}
               <div className={cn(
                 "p-4 border-t transition-colors duration-300 flex justify-end",
-                activeModal === 'OPERASI_DETAIL' ? "bg-tactical-red/5 border-tactical-red/30" : "bg-tactical-green/5 border-tactical-green/30"
+                activeModal === 'OPERASI_DETAIL' ? "bg-tactical-red/5 border-tactical-red/30" : 
+                activeModal === 'INTEL_DETAIL' ? "bg-tactical-cyan/5 border-tactical-cyan/30" :
+                "bg-tactical-green/5 border-tactical-green/30"
               )}>
                 <button 
-                   onClick={() => {
-                    if (activeModal === 'PERSONNEL_DETAIL' || activeModal === 'SENJATA_DETAIL' || activeModal === 'ALUTSISTA_DETAIL') {
-                      if (detailReturnModal) {
-                        setActiveModal(detailReturnModal as any);
-                      } else {
-                        setActiveModal(activeModal === 'PERSONNEL_DETAIL' ? 'PERSONNEL' : activeModal === 'SENJATA_DETAIL' ? 'SENJATA' : 'ALUTSISTA');
-                      }
-                    } else {
-                      setActiveModal(null);
-                    }
+                  onClick={() => {
+                    setActiveModal(null);
                   }}
                   className={cn(
                     "px-8 py-2.5 border text-xs font-black font-mono tracking-[0.2em] transition-all shadow-lg active:scale-95",
                     activeModal === 'OPERASI_DETAIL' 
                       ? "bg-tactical-red/20 border-tactical-red text-tactical-red hover:bg-tactical-red hover:text-white" 
+                      : activeModal === 'INTEL_DETAIL'
+                      ? "bg-tactical-cyan/20 border-tactical-cyan text-tactical-cyan hover:bg-tactical-cyan hover:text-black"
                       : "bg-tactical-green/20 border-tactical-green text-tactical-green hover:bg-tactical-green hover:text-black"
                   )}
                 >

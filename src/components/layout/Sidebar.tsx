@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
@@ -24,8 +24,8 @@ import {
 import { cn } from "@/lib/utils";
 
 const navigation = [
-  { name: "Map", href: "/map", icon: Map },
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Peta", href: "/map", icon: Map },
+  { name: "Beranda", href: "/dashboard", icon: LayoutDashboard },
   { 
     name: "Gelar Operasi", 
     href: "/gelar-operasi", 
@@ -49,7 +49,7 @@ const navigation = [
       { name: "VCON", href: "/komunikasi/vcon" },
     ]
   },
-  { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Pengaturan", href: "/settings", icon: Settings },
 ];
 
 interface SidebarProps {
@@ -60,16 +60,36 @@ interface SidebarProps {
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+  const [isHovered, setIsHovered] = useState(false);
 
   const toggleMenu = (name: string) => {
     setOpenMenus(prev => ({ ...prev, [name]: !prev[name] }));
   };
 
+  // Derived state: Sidebar is effectively collapsed only if it's prop-collapsed AND not hovered
+  const effectiveCollapsed = isCollapsed && !isHovered;
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--sidebar-width', effectiveCollapsed ? '80px' : '256px');
+  }, [effectiveCollapsed]);
+
   return (
-    <div className={cn(
-      "h-screen fixed top-0 left-0 flex flex-col bg-tactical-panel border-r border-tactical-border z-40 transition-all duration-300",
-      isCollapsed ? "w-20" : "w-64"
-    )}>
+    <div 
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        // Reset open menus when mouse leaves if it was auto-expanded
+        if (isCollapsed) setOpenMenus({});
+      }}
+      className={cn(
+        "h-screen fixed top-0 left-0 flex flex-col bg-tactical-panel border-r border-tactical-border z-[1001] transition-all duration-300 shadow-2xl",
+        effectiveCollapsed ? "w-20" : "w-64",
+        isHovered && isCollapsed && "border-r-tactical-green shadow-[5px_0_20px_rgba(57,255,20,0.15)]"
+      )}
+      style={{
+        ['--sidebar-width' as any]: effectiveCollapsed ? '80px' : '256px'
+      }}
+    >
       {/* Camouflage Background Overlay */}
       <div 
         className="absolute inset-0 z-[-1] opacity-100 pointer-events-none"
@@ -82,12 +102,12 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       />
       <div className={cn(
         "p-6 flex items-center gap-3 border-b border-tactical-border relative",
-        isCollapsed && "px-4 justify-center"
+        effectiveCollapsed && "px-4 justify-center"
       )}>
         <div className="w-10 h-10 rounded-full bg-tactical-green/10 border border-tactical-green/30 flex items-center justify-center overflow-hidden flex-shrink-0">
           <img src="/logo_puskodal.png" alt="Kopassus" className="w-8 h-8 object-contain" />
         </div>
-        {!isCollapsed && (
+        {!effectiveCollapsed && (
           <motion.div 
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
@@ -98,20 +118,10 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           </motion.div>
         )}
         
-        {/* Toggle Button */}
-        <button 
-          onClick={onToggle}
-          className={cn(
-            "absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-tactical-panel border border-tactical-border rounded-full flex items-center justify-center text-tactical-muted hover:text-tactical-green transition-all z-50",
-            isCollapsed && "right-2 top-2 translate-y-0"
-          )}
-        >
-          {isCollapsed ? <PanelLeftOpen size={12} /> : <PanelLeftClose size={12} />}
-        </button>
       </div>
       
-      <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
-        {!isCollapsed && (
+      <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto custom-scrollbar">
+        {!effectiveCollapsed && (
           <div className="px-3 mb-2 text-[10px] font-mono text-tactical-muted uppercase tracking-wider">
             Main Navigation
           </div>
@@ -129,7 +139,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                   onClick={() => toggleMenu(item.name)}
                   className={cn(
                     "w-full group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200",
-                    isCollapsed && "justify-center px-2",
+                    effectiveCollapsed && "justify-center px-2",
                     isActive 
                       ? "bg-tactical-green/10 text-tactical-green border border-tactical-green/30" 
                       : "text-tactical-text hover:bg-tactical-border hover:text-tactical-green"
@@ -137,10 +147,10 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                 >
                   <Icon className={cn(
                     "h-5 w-5 flex-shrink-0 transition-colors",
-                    !isCollapsed && "mr-3",
+                    !effectiveCollapsed && "mr-3",
                     isActive ? "text-tactical-green" : "text-tactical-muted group-hover:text-tactical-green"
                   )} />
-                  {!isCollapsed && (
+                  {!effectiveCollapsed && (
                     <>
                       <span className="flex-1 text-left">{item.name}</span>
                       <div className="ml-auto">
@@ -154,7 +164,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                   href={item.href}
                   className={cn(
                     "group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200",
-                    isCollapsed && "justify-center px-2",
+                    effectiveCollapsed && "justify-center px-2",
                     isActive 
                       ? "bg-tactical-green/10 text-tactical-green border border-tactical-green/30" 
                       : "text-tactical-text hover:bg-tactical-border hover:text-tactical-green"
@@ -162,10 +172,10 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                 >
                   <Icon className={cn(
                     "h-5 w-5 flex-shrink-0 transition-colors",
-                    !isCollapsed && "mr-3",
+                    !effectiveCollapsed && "mr-3",
                     isActive ? "text-tactical-green" : "text-tactical-muted group-hover:text-tactical-green"
                   )} />
-                  {!isCollapsed && (
+                  {!effectiveCollapsed && (
                     <>
                       <span className="flex-1 text-left">{item.name}</span>
                       {isActive && (
@@ -176,7 +186,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                 </Link>
               )}
 
-              {hasSubItems && isOpen && !isCollapsed && (
+              {hasSubItems && isOpen && !effectiveCollapsed && (
                 <div className="pl-11 space-y-1">
                   {item.subItems.map((sub) => {
                     const isSubActive = pathname === sub.href;
@@ -199,7 +209,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               )}
 
               {/* Floating Tooltip/Submenu for Collapsed Mode */}
-              {isCollapsed && (
+              {effectiveCollapsed && (
                 <div className="absolute left-full top-0 ml-2 w-48 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-200 z-50 pointer-events-none group-hover:pointer-events-auto">
                   <div className="tactical-glass tactical-border p-2 bg-tactical-panel/95 backdrop-blur-xl shadow-2xl border-l-2 border-l-tactical-green">
                     <div className="px-3 py-1.5 mb-1 text-[10px] font-bold text-tactical-green font-mono border-b border-tactical-border/50 uppercase tracking-widest flex items-center justify-between">
@@ -236,7 +246,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       </nav>
 
       <div className="p-4 border-t border-tactical-border">
-        {isCollapsed ? (
+        {effectiveCollapsed ? (
           <div className="flex justify-center">
             <div className="w-3 h-3 rounded-full bg-tactical-green animate-pulse shadow-[0_0_8px_rgba(57,255,20,0.8)]"></div>
           </div>

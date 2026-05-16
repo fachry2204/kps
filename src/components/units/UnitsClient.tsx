@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 
 const LocationPicker = dynamic(() => import("./LocationPicker"), { 
   ssr: false,
-  loading: () => <div className="h-[400px] bg-tactical-bg flex items-center justify-center text-tactical-green font-mono text-xs">INITIALIZING SATELLITE...</div>
+  loading: () => <div className="h-[400px] bg-tactical-bg flex items-center justify-center text-tactical-green font-mono text-xs">MENGINISIALISASI SATELIT...</div>
 });
 
 interface Unit {
@@ -153,7 +153,7 @@ export default function UnitsClient({ units }: UnitsClientProps) {
             <Building2 className="text-tactical-green" />
             KESATUAN
           </h2>
-          <p className="text-tactical-muted font-mono text-sm mt-1">FORCE STRUCTURE & READINESS</p>
+          <p className="text-tactical-muted font-mono text-sm mt-1">STRUKTUR KEKUATAN & KESIAPAN</p>
         </div>
         <div className="flex items-center gap-4">
           <div className="relative">
@@ -175,7 +175,7 @@ export default function UnitsClient({ units }: UnitsClientProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {filteredUnits.map((unit, i) => (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
@@ -280,7 +280,7 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                 />
                 <div className="mt-4 flex justify-between items-center text-[10px] font-mono text-tactical-muted italic">
                   <span>* KOORDINAT: {activeUnitMap.coordinates}</span>
-                  <span className="text-tactical-cyan">TACTICAL GRID PREVIEW ACTIVE</span>
+                  <span className="text-tactical-cyan">PRATINJAU GRID TAKTIS AKTIF</span>
                 </div>
               </div>
             </motion.div>
@@ -328,7 +328,7 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                         onClick={() => setActiveUnitMap(activeUnitDetail)}
                         className="text-[10px] font-mono text-tactical-green hover:underline flex items-center gap-1"
                       >
-                        <MapPin size={10} /> LIHAT MAP
+                        <MapPin size={10} /> LIHAT PETA
                       </button>
                     </div>
                   </div>
@@ -338,13 +338,13 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                     onClick={() => router.push(`/komunikasi/chat?unitId=${activeUnitDetail.id}`)}
                     className="flex items-center gap-2 px-4 py-2 bg-tactical-green/10 border border-tactical-green/30 text-tactical-green text-[11px] font-bold font-mono rounded hover:bg-tactical-green hover:text-black transition-all uppercase tracking-widest"
                   >
-                    <MessageSquare size={16} /> SECURE CHAT
+                    <MessageSquare size={16} /> CHAT AMAN
                   </button>
                   <button 
                     onClick={() => router.push(`/komunikasi/vcon?unitId=${activeUnitDetail.id}`)}
                     className="flex items-center gap-2 px-4 py-2 bg-tactical-red/10 border border-tactical-red/30 text-tactical-red text-[11px] font-bold font-mono rounded hover:bg-tactical-red hover:text-black transition-all uppercase tracking-widest"
                   >
-                    <Video size={16} /> SECURE VCON
+                    <Video size={16} /> VCON AMAN
                   </button>
                   <div className="w-[1px] h-8 bg-tactical-border mx-1" />
                   <button 
@@ -378,7 +378,7 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                         <div className="text-[10px] font-mono text-tactical-muted">STATUS OPERASIONAL</div>
                         <div className="flex items-center gap-2 mt-1">
                           <div className="w-2 h-2 rounded-full bg-tactical-green animate-pulse"></div>
-                          <span className="text-xs font-bold text-tactical-text">READY FOR DEPLOYMENT</span>
+                          <span className="text-xs font-bold text-tactical-text">SIAP UNTUK PENUGASAN</span>
                         </div>
                       </div>
                     </div>
@@ -421,7 +421,7 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                             />
                           </div>
                         </div>
-                        <span className="text-[10px] font-mono text-tactical-muted uppercase">ACTIVE DUTY PERSONNEL</span>
+                        <span className="text-[10px] font-mono text-tactical-muted uppercase">PERSONIL TUGAS AKTIF</span>
                       </div>
 
                       <div className="tactical-glass tactical-border overflow-hidden">
@@ -438,7 +438,7 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                             {loadingMembers ? (
                               <tr>
                                 <td colSpan={4} className="px-4 py-10 text-center font-mono text-tactical-muted text-xs">
-                                  LOADING PERSONNEL DATA...
+                                  MEMUAT DATA PERSONIL...
                                 </td>
                               </tr>
                             ) : (() => {
@@ -582,7 +582,7 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                             {loadingLogistics ? (
                               <tr>
                                 <td colSpan={4} className="px-4 py-10 text-center font-mono text-tactical-muted text-xs">
-                                  FETCHING LOGISTICS DATA...
+                                  MENGAMBIL DATA LOGISTIK...
                                 </td>
                               </tr>
                             ) : unitLogistics.length > 0 ? (
@@ -643,7 +643,7 @@ export default function UnitsClient({ units }: UnitsClientProps) {
                       onClick={() => handleDelete(activeUnitDetail.id)}
                       className="px-4 py-2 bg-tactical-red/10 border border-tactical-red/30 text-tactical-red text-xs font-mono rounded flex items-center gap-2 hover:bg-tactical-red hover:text-tactical-bg transition-all"
                     >
-                      <Trash2 size={14} /> DELETE DATA
+                      <Trash2 size={14} /> HAPUS DATA
                     </button>
                   </div>
                 )}

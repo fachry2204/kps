@@ -128,13 +128,19 @@ export default function AddLogisticsForm() {
                   <label className="text-[10px] font-mono text-tactical-muted flex items-center gap-2 uppercase">
                     Kategori
                   </label>
-                  <input 
+                  <select 
                     required
                     name="category"
-                    type="text" 
-                    placeholder="Contoh: Senjata, Medis, dll."
-                    className="w-full bg-tactical-bg border border-tactical-border rounded px-4 py-2.5 text-sm text-tactical-text focus:outline-none focus:border-tactical-green transition-colors"
-                  />
+                    className="w-full bg-tactical-bg border border-tactical-border rounded px-4 py-2.5 text-sm text-tactical-text focus:outline-none focus:border-tactical-green transition-colors appearance-none"
+                  >
+                    <option value="">PILIH KATEGORI</option>
+                    <option value="Senjata Jenis">Senjata Jenis</option>
+                    <option value="Alkapsus">Alkapsus</option>
+                    <option value="Rantis">Rantis</option>
+                    <option value="Optik">Optik</option>
+                    <option value="Handak">Handak</option>
+                    <option value="Lain-Lain">Lain-Lain</option>
+                  </select>
                 </div>
 
                 <div className="space-y-2">

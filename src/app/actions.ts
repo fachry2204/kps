@@ -78,6 +78,7 @@ export async function getPersonnel() {
     const [rows] = await pool.query(`
       SELECT p.*, u.unit_name,
       COALESCE(odn.name, oln.name) as current_op_name,
+      COALESCE(odn.name, oln.name) as satgas_name,
       poa.op_id as current_op_id,
       poa.op_type as current_op_type,
       (SELECT u2.unit_name FROM units u2 WHERE u2.commander_id = p.id LIMIT 1) as commanded_unit_name
@@ -100,9 +101,16 @@ export async function getPersonnelById(id: number) {
   try {
     if (isNaN(id)) return null;
     const [rows] = await pool.query(`
-      SELECT p.*, u.unit_name 
+      SELECT p.*, u.unit_name,
+             COALESCE(odn.name, oln.name) as current_op_name,
+             COALESCE(odn.name, oln.name) as satgas_name,
+             poa.op_id as current_op_id,
+             poa.op_type as current_op_type
       FROM personnel p 
       LEFT JOIN units u ON p.unit_id = u.id
+      LEFT JOIN personnel_ops_assignments poa ON p.id = poa.personnel_id
+      LEFT JOIN ops_dalamnegri odn ON poa.op_id = odn.id AND poa.op_type = 'DALAM_NEGERI'
+      LEFT JOIN ops_luarnegri oln ON poa.op_id = oln.id AND poa.op_type = 'LUAR_NEGERI'
       WHERE p.id = ?
       LIMIT 1
     `, [id]);
@@ -232,6 +240,21 @@ export async function addLogistics(data: any) {
   }
 }
 
+export async function migrateLogisticsCategories() {
+  try {
+    console.log('Starting logistics category migration...');
+    await pool.query("UPDATE logistics SET category = 'Senjata Jenis' WHERE category = 'Senjata' OR category = 'SENJATA'");
+    await pool.query("UPDATE logistics SET category = 'Rantis' WHERE category = 'Kendaraan' OR category = 'KENDARAAN'");
+    await pool.query("UPDATE logistics SET category = 'Alkapsus' WHERE category = 'Perlengkapan' OR category = 'PERLENGKAPAN' OR category = 'ALAT'");
+    await pool.query("UPDATE logistics SET category = 'Handak' WHERE category = 'Amunisi' OR category = 'AMUNISI' OR category = 'Bahan Peledak'");
+    console.log('Migration completed successfully.');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Migration failed:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 export async function deleteLogistics(id: number) {
   try {
     await pool.query('DELETE FROM logistics WHERE id = ?', [id]);
@@ -243,22 +266,56 @@ export async function deleteLogistics(id: number) {
 
 // 4. Operations Data
 export async function getOperations() {
-  const [rows] = await pool.query('SELECT * FROM operations ORDER BY start_date DESC');
-  return rows as any[];
+  try {
+    const [rows] = await pool.query('SELECT * FROM operations ORDER BY start_date DESC');
+    return rows as any[];
+  } catch (error) {
+    console.error("Get Operations Error:", error);
+    return [];
+  }
 }
 
 // 5. Intel Reports
 export async function getIntelReports() {
-  const [rows] = await pool.query('SELECT * FROM intel_reports ORDER BY created_at DESC');
-  return rows as any[];
+  try {
+    const [rows] = await pool.query(`
+      SELECT ir.*, 
+             CASE 
+               WHEN ir.operation_type = 'DALAM_NEGERI' THEN od.name 
+               WHEN ir.operation_type = 'LUAR_NEGERI' THEN ol.name 
+               ELSE 'OPERASI UMUM'
+             END as operation_name
+      FROM intel_reports ir
+      LEFT JOIN ops_dalamnegri od ON ir.operation_id = od.id AND ir.operation_type = 'DALAM_NEGERI'
+      LEFT JOIN ops_luarnegri ol ON ir.operation_id = ol.id AND ir.operation_type = 'LUAR_NEGERI'
+      ORDER BY ir.created_at DESC
+    `);
+    return rows as any[];
+  } catch (error) {
+    console.error("Get Intel Reports Error:", error);
+    return [];
+  }
+}
+
+export async function getOperationIntel(opId: number, opType: string) {
+  try {
+    const [rows] = await pool.query(
+      'SELECT * FROM intel_reports WHERE operation_id = ? AND operation_type = ? ORDER BY created_at DESC', 
+      [opId, opType]
+    );
+    return rows as any[];
+  } catch (error) {
+    console.error("Get Operation Intel Error:", error);
+    return [];
+  }
 }
 
 export async function addIntelReport(data: any) {
   try {
-    const { title, threat_level, content, location_tag, coordinates, is_classified } = data;
+    const { title, threat_level, content, location_tag, coordinates, address, is_classified, operation_id, operation_type, reporter_id, lapsus, laporan_periodik, prediksi_ancaman } = data;
     const [result]: any = await pool.query(
-      'INSERT INTO intel_reports (title, threat_level, content, location_tag, coordinates, is_classified) VALUES (?, ?, ?, ?, ?, ?)',
-      [title, threat_level, content, location_tag, coordinates, is_classified ? 1 : 0]
+      'INSERT INTO intel_reports (title, threat_level, content, location_tag, coordinates, address, is_classified, operation_id, operation_type, reporter_id, lapsus, laporan_periodik, prediksi_ancaman) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [title, threat_level, content, location_tag, coordinates, address, is_classified ? 1 : 0, operation_id || null, operation_type || null, reporter_id || null, lapsus || null, laporan_periodik || null, prediksi_ancaman || null]
     );
     return { success: true, id: result.insertId };
   } catch (error: any) {
@@ -277,10 +334,10 @@ export async function deleteIntelReport(id: number) {
 
 export async function updateIntelReport(id: number, data: any) {
   try {
-    const { title, threat_level, content, location_tag, coordinates, is_classified } = data;
+    const { title, threat_level, content, location_tag, coordinates, is_classified, lapsus, laporan_periodik, prediksi_ancaman } = data;
     await pool.query(
-      'UPDATE intel_reports SET title = ?, threat_level = ?, content = ?, location_tag = ?, coordinates = ?, is_classified = ? WHERE id = ?',
-      [title, threat_level, content, location_tag, coordinates, is_classified ? 1 : 0, id]
+      'UPDATE intel_reports SET title = ?, threat_level = ?, content = ?, location_tag = ?, coordinates = ?, is_classified = ?, lapsus = ?, laporan_periodik = ?, prediksi_ancaman = ? WHERE id = ?',
+      [title, threat_level, content, location_tag, coordinates, is_classified ? 1 : 0, lapsus || null, laporan_periodik || null, prediksi_ancaman || null, id]
     );
     return { success: true };
   } catch (error: any) {
@@ -290,19 +347,24 @@ export async function updateIntelReport(id: number, data: any) {
 
 // 6. Units Data
 export async function getUnits() {
-  const [rows] = await pool.query(`
-    SELECT u.*, 
-    (SELECT COUNT(*) FROM personnel p WHERE p.unit_id = u.id) as strength,
-    (SELECT COUNT(*) FROM logistics l WHERE l.unit_id = u.id) as logistics_count,
-    (SELECT SUM(quantity) FROM logistics l WHERE l.unit_id = u.id AND l.category = 'Weaponry') as weaponry_count,
-    p.name as commander_name,
-    p.rank as commander_rank,
-    p.nrp as commander_nrp
-    FROM units u
-    LEFT JOIN personnel p ON u.commander_id = p.id
-    GROUP BY u.id, p.name, p.rank, p.nrp
-  `);
-  return rows as any[];
+  try {
+    const [rows] = await pool.query(`
+      SELECT u.*, 
+      (SELECT COUNT(*) FROM personnel p WHERE p.unit_id = u.id) as strength,
+      (SELECT COUNT(*) FROM logistics l WHERE l.unit_id = u.id) as logistics_count,
+      (SELECT SUM(quantity) FROM logistics l WHERE l.unit_id = u.id AND l.category = 'Weaponry') as weaponry_count,
+      p.name as commander_name,
+      p.rank as commander_rank,
+      p.nrp as commander_nrp
+      FROM units u
+      LEFT JOIN personnel p ON u.commander_id = p.id
+      GROUP BY u.id, p.name, p.rank, p.nrp
+    `);
+    return rows as any[];
+  } catch (error) {
+    console.error("Get Units Error:", error);
+    return [];
+  }
 }
 
 export async function getUnitById(id: number) {
@@ -330,6 +392,30 @@ export async function getUnitMembers(unitId: number) {
     return rows as any[];
   } catch (error) {
     console.error("Get Unit Members Error:", error);
+    return [];
+  }
+}
+
+export async function getUnitActivities(unitId: number) {
+  try {
+    const [rows] = await pool.query(`
+      SELECT DISTINCT 
+        COALESCE(dn.id, ln.id) as id,
+        COALESCE(dn.name, ln.name) as name,
+        COALESCE(dn.type, ln.type) as type,
+        COALESCE(dn.status, ln.status) as status,
+        COALESCE(dn.location, ln.location) as location,
+        COALESCE(dn.created_at, ln.created_at) as created_at,
+        poa.op_type as category
+      FROM personnel p
+      JOIN personnel_ops_assignments poa ON p.id = poa.personnel_id
+      LEFT JOIN ops_dalamnegri dn ON poa.op_id = dn.id AND poa.op_type = 'DALAM_NEGERI'
+      LEFT JOIN ops_luarnegri ln ON poa.op_id = ln.id AND poa.op_type = 'LUAR_NEGERI'
+      WHERE p.unit_id = ?
+    `, [unitId]);
+    return rows as any[];
+  } catch (error) {
+    console.error("Get Unit Activities Error:", error);
     return [];
   }
 }
@@ -608,27 +694,37 @@ export async function deletePersonnel(id: number) {
 }
 // 13. Operations Tables (New)
 export async function getOpsDalamNegeri() {
-  const [rows] = await pool.query(`
-    SELECT o.*, 
-           (SELECT COUNT(*) FROM personnel_ops_assignments WHERE op_id = o.id AND op_type = 'DALAM_NEGERI') as actual_personnel,
-           (SELECT p.name FROM personnel_ops_assignments a JOIN personnel p ON a.personnel_id = p.id WHERE a.op_id = o.id AND a.op_type = 'DALAM_NEGERI' AND a.role = 'KOMANDAN' LIMIT 1) as commander_name,
-           (SELECT p.rank FROM personnel_ops_assignments a JOIN personnel p ON a.personnel_id = p.id WHERE a.op_id = o.id AND a.op_type = 'DALAM_NEGERI' AND a.role = 'KOMANDAN' LIMIT 1) as commander_rank
-    FROM ops_dalamnegri o
-    ORDER BY o.id ASC
-  `);
-  return rows as any[];
+  try {
+    const [rows] = await pool.query(`
+      SELECT o.*, 
+             (SELECT COUNT(*) FROM personnel_ops_assignments WHERE op_id = o.id AND op_type = 'DALAM_NEGERI') as actual_personnel,
+             (SELECT p.name FROM personnel_ops_assignments a JOIN personnel p ON a.personnel_id = p.id WHERE a.op_id = o.id AND a.op_type = 'DALAM_NEGERI' AND a.role = 'KOMANDAN' LIMIT 1) as commander_name,
+             (SELECT p.rank FROM personnel_ops_assignments a JOIN personnel p ON a.personnel_id = p.id WHERE a.op_id = o.id AND a.op_type = 'DALAM_NEGERI' AND a.role = 'KOMANDAN' LIMIT 1) as commander_rank
+      FROM ops_dalamnegri o
+      ORDER BY o.id ASC
+    `);
+    return rows as any[];
+  } catch (error) {
+    console.error("Get Ops Dalam Negeri Error:", error);
+    return [];
+  }
 }
 
 export async function getOpsLuarNegeri() {
-  const [rows] = await pool.query(`
-    SELECT o.*, 
-           (SELECT COUNT(*) FROM personnel_ops_assignments WHERE op_id = o.id AND op_type = 'LUAR_NEGERI') as actual_personnel,
-           (SELECT p.name FROM personnel_ops_assignments a JOIN personnel p ON a.personnel_id = p.id WHERE a.op_id = o.id AND a.op_type = 'LUAR_NEGERI' AND a.role = 'KOMANDAN' LIMIT 1) as commander_name,
-           (SELECT p.rank FROM personnel_ops_assignments a JOIN personnel p ON a.personnel_id = p.id WHERE a.op_id = o.id AND a.op_type = 'LUAR_NEGERI' AND a.role = 'KOMANDAN' LIMIT 1) as commander_rank
-    FROM ops_luarnegri o
-    ORDER BY o.id ASC
-  `);
-  return rows as any[];
+  try {
+    const [rows] = await pool.query(`
+      SELECT o.*, 
+             (SELECT COUNT(*) FROM personnel_ops_assignments WHERE op_id = o.id AND op_type = 'LUAR_NEGERI') as actual_personnel,
+             (SELECT p.name FROM personnel_ops_assignments a JOIN personnel p ON a.personnel_id = p.id WHERE a.op_id = o.id AND a.op_type = 'LUAR_NEGERI' AND a.role = 'KOMANDAN' LIMIT 1) as commander_name,
+             (SELECT p.rank FROM personnel_ops_assignments a JOIN personnel p ON a.personnel_id = p.id WHERE a.op_id = o.id AND a.op_type = 'LUAR_NEGERI' AND a.role = 'KOMANDAN' LIMIT 1) as commander_rank
+      FROM ops_luarnegri o
+      ORDER BY o.id ASC
+    `);
+    return rows as any[];
+  } catch (error) {
+    console.error("Get Ops Luar Negeri Error:", error);
+    return [];
+  }
 }
 
 export async function addOpDalamNegeri(data: any) {
@@ -671,11 +767,34 @@ export async function updateOpDalamNegeri(id: number, data: any) {
 }
 
 export async function deleteOpDalamNegeri(id: number) {
+  const connection = await pool.getConnection();
   try {
-    await pool.query('DELETE FROM ops_dalamnegri WHERE id = ?', [id]);
+    await connection.beginTransaction();
+
+    // 1. Return all assets to stock
+    const [assets]: any = await connection.query('SELECT asset_name, quantity FROM operation_assets WHERE operation_id = ? AND operation_type = "DALAM_NEGERI"', [id]);
+    for (const asset of assets) {
+      await connection.query('UPDATE logistics SET quantity = quantity + ? WHERE item_name = ? AND unit_id IS NULL', [asset.quantity, asset.asset_name]);
+    }
+    await connection.query('DELETE FROM operation_assets WHERE operation_id = ? AND operation_type = "DALAM_NEGERI"', [id]);
+
+    // 2. Reset personnel status
+    const [assignments]: any = await connection.query('SELECT personnel_id FROM personnel_ops_assignments WHERE op_id = ? AND op_type = "DALAM_NEGERI"', [id]);
+    for (const assign of assignments) {
+      await connection.query('UPDATE personnel SET status = "READY" WHERE id = ?', [assign.personnel_id]);
+    }
+    await connection.query('DELETE FROM personnel_ops_assignments WHERE op_id = ? AND op_type = "DALAM_NEGERI"', [id]);
+
+    // 3. Delete the operation
+    await connection.query('DELETE FROM ops_dalamnegri WHERE id = ?', [id]);
+
+    await connection.commit();
     return { success: true };
   } catch (error: any) {
+    await connection.rollback();
     return { success: false, error: error.message };
+  } finally {
+    connection.release();
   }
 }
 
@@ -693,13 +812,37 @@ export async function updateOpLuarNegeri(id: number, data: any) {
 }
 
 export async function deleteOpLuarNegeri(id: number) {
+  const connection = await pool.getConnection();
   try {
-    await pool.query('DELETE FROM ops_luarnegri WHERE id = ?', [id]);
+    await connection.beginTransaction();
+
+    // 1. Return all assets to stock
+    const [assets]: any = await connection.query('SELECT asset_name, quantity FROM operation_assets WHERE operation_id = ? AND operation_type = "LUAR_NEGERI"', [id]);
+    for (const asset of assets) {
+      await connection.query('UPDATE logistics SET quantity = quantity + ? WHERE item_name = ? AND unit_id IS NULL', [asset.quantity, asset.asset_name]);
+    }
+    await connection.query('DELETE FROM operation_assets WHERE operation_id = ? AND operation_type = "LUAR_NEGERI"', [id]);
+
+    // 2. Reset personnel status
+    const [assignments]: any = await connection.query('SELECT personnel_id FROM personnel_ops_assignments WHERE op_id = ? AND op_type = "LUAR_NEGERI"', [id]);
+    for (const assign of assignments) {
+      await connection.query('UPDATE personnel SET status = "READY" WHERE id = ?', [assign.personnel_id]);
+    }
+    await connection.query('DELETE FROM personnel_ops_assignments WHERE op_id = ? AND op_type = "LUAR_NEGERI"', [id]);
+
+    // 3. Delete the operation
+    await connection.query('DELETE FROM ops_luarnegri WHERE id = ?', [id]);
+
+    await connection.commit();
     return { success: true };
   } catch (error: any) {
+    await connection.rollback();
     return { success: false, error: error.message };
+  } finally {
+    connection.release();
   }
 }
+
 export async function searchPersonnel(query: string) {
   const [rows] = await pool.query(
     'SELECT id, name, rank, specialization, nrp FROM personnel WHERE name LIKE ? OR nrp LIKE ? LIMIT 10',
@@ -816,24 +959,34 @@ export async function getPersonnelOpsHistory(personnelId: number) {
 }
 
 // 14. Chat System
-export async function getChatContacts(currentUserId: number, unitId?: number) {
+export async function getChatContacts(currentUserId: number, unitId?: number, opId?: number) {
   let query = `
-    SELECT p.id, p.name, p.rank, p.photo_url,
+    SELECT DISTINCT p.id, p.name, p.rank, p.photo_url,
       (SELECT message_text FROM messages WHERE (sender_id = p.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = p.id) ORDER BY created_at DESC LIMIT 1) as lastMessage,
       (SELECT created_at FROM messages WHERE (sender_id = p.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = p.id) ORDER BY created_at DESC LIMIT 1) as time,
       (SELECT COUNT(*) FROM messages WHERE sender_id = p.id AND receiver_id = ? AND status != 'read') as unread
     FROM personnel p
-    WHERE p.id != ?
   `;
+  
+  if (opId) {
+    query += ` JOIN personnel_ops_assignments poa ON p.id = poa.personnel_id `;
+  }
+
+  query += ` WHERE p.id != ? `;
   
   const params: any[] = [currentUserId, currentUserId, currentUserId, currentUserId, currentUserId, currentUserId];
   
   if (unitId) {
-    query += ` AND p.unit_id = ?`;
+    query += ` AND p.unit_id = ? `;
     params.push(unitId);
   }
+
+  if (opId) {
+    query += ` AND poa.op_id = ? `;
+    params.push(opId);
+  }
   
-  query += ` ORDER BY time DESC, p.name ASC`;
+  query += ` ORDER BY time DESC, p.name ASC `;
 
   const [rows] = await pool.query(query, params);
   
@@ -930,9 +1083,23 @@ export async function addOperationAsset(data: {
 }) {
   try {
     const { operation_id, operation_type, asset_name, asset_type, quantity, condition_status, description } = data;
+    
+    // 1. Check if enough stock exists in master logistics (where unit_id is NULL)
+    const [logistics]: any = await pool.query('SELECT id, quantity, category FROM logistics WHERE item_name = ? AND unit_id IS NULL LIMIT 1', [asset_name]);
+    if (logistics.length === 0 || logistics[0].quantity < quantity) {
+      return { success: false, error: "Stok logistik tidak mencukupi atau tidak ditemukan." };
+    }
+
+    const logId = logistics[0].id;
+    const category = logistics[0].category;
+
+    // 2. Subtract from logistics
+    await pool.query('UPDATE logistics SET quantity = quantity - ? WHERE id = ?', [quantity, logId]);
+
+    // 3. Insert into operation_assets
     await pool.query(
-      'INSERT INTO operation_assets (operation_id, operation_type, asset_name, asset_type, quantity, condition_status, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [operation_id, operation_type, asset_name, asset_type, quantity, condition_status, description]
+      'INSERT INTO operation_assets (operation_id, operation_type, asset_name, asset_type, category, quantity, condition_status, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [operation_id, operation_type, asset_name, asset_type, category, quantity, condition_status, description]
     );
     return { success: true };
   } catch (error: any) {
@@ -942,6 +1109,15 @@ export async function addOperationAsset(data: {
 
 export async function deleteOperationAsset(id: number) {
   try {
+    // 1. Get the asset info before deleting to restore stock
+    const [assets]: any = await pool.query('SELECT asset_name, quantity FROM operation_assets WHERE id = ?', [id]);
+    if (assets.length > 0) {
+      const { asset_name, quantity } = assets[0];
+      // Restore to logistics (where unit_id is NULL)
+      await pool.query('UPDATE logistics SET quantity = quantity + ? WHERE item_name = ? AND unit_id IS NULL', [quantity, asset_name]);
+    }
+
+    // 2. Delete from operation_assets
     await pool.query('DELETE FROM operation_assets WHERE id = ?', [id]);
     return { success: true };
   } catch (error: any) {
@@ -949,4 +1125,174 @@ export async function deleteOperationAsset(id: number) {
   }
 }
 
+export async function updateOperationAsset(id: number, data: { quantity: number, condition_status: string, description?: string }) {
+  try {
+    // 1. Get current quantity to calculate diff
+    const [current]: any = await pool.query('SELECT asset_name, quantity FROM operation_assets WHERE id = ?', [id]);
+    if (current.length === 0) return { success: false, error: "Asset not found" };
+    
+    const diff = data.quantity - current[0].quantity;
+    const assetName = current[0].asset_name;
+
+    if (diff !== 0) {
+      // If increasing operational quantity, subtract from logistics. If decreasing, add back.
+      // Check if enough stock for increase
+      if (diff > 0) {
+        const [logistics]: any = await pool.query('SELECT quantity FROM logistics WHERE item_name = ? AND unit_id IS NULL', [assetName]);
+        if (logistics.length === 0 || logistics[0].quantity < diff) {
+          return { success: false, error: "Stok tidak mencukupi untuk penambahan." };
+        }
+      }
+      await pool.query('UPDATE logistics SET quantity = quantity - ? WHERE item_name = ? AND unit_id IS NULL', [diff, assetName]);
+    }
+
+    // 2. Update operation_assets
+    await pool.query(
+      'UPDATE operation_assets SET quantity = ?, condition_status = ?, description = ? WHERE id = ?',
+      [data.quantity, data.condition_status, data.description || '', id]
+    );
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getOperationAssetsTotal() {
+  try {
+    const [rows]: any = await pool.query('SELECT SUM(quantity) as total FROM operation_assets');
+    return rows[0].total || 0;
+  } catch (error) {
+    return 0;
+  }
+}
+
+
+
+export async function getLogisticsDistribution(itemName: string) {
+  try {
+    // 1. In Units (Kesatuan)
+    const [unitsRows]: any = await pool.query(
+      'SELECT SUM(quantity) as total FROM logistics WHERE item_name = ? AND unit_id IS NOT NULL',
+      [itemName]
+    );
+    const count_kesatuan = unitsRows[0].total || 0;
+
+    // 2. In Operations (Dalam Negeri)
+    const [dnRows]: any = await pool.query(
+      'SELECT SUM(quantity) as total FROM operation_assets WHERE asset_name = ? AND operation_type = "DALAM_NEGERI"',
+      [itemName]
+    );
+    const count_ops_dn = dnRows[0].total || 0;
+
+    // 3. In Operations (Luar Negeri)
+    const [lnRows]: any = await pool.query(
+      'SELECT SUM(quantity) as total FROM operation_assets WHERE asset_name = ? AND operation_type = "LUAR_NEGERI"',
+      [itemName]
+    );
+    const count_ops_ln = lnRows[0].total || 0;
+
+    return {
+      kesatuan: count_kesatuan,
+      ops_dn: count_ops_dn,
+      ops_ln: count_ops_ln
+    };
+  } catch (error) {
+    console.error("Distribution Error:", error);
+    return { kesatuan: 0, ops_dn: 0, ops_ln: 0 };
+  }
+}
+
+export async function getLogisticsDistributionDetails(itemName: string) {
+  try {
+    // 1. In Units (Kesatuan)
+    const [units]: any = await pool.query(`
+      SELECT u.id, u.unit_name as name, u.coordinates, l.quantity, 'UNIT' as type
+      FROM units u
+      JOIN logistics l ON u.id = l.unit_id
+      WHERE l.item_name = ? AND l.quantity > 0
+    `, [itemName]);
+
+    // 2. In Operations (Dalam Negeri)
+    const [ops_dn]: any = await pool.query(`
+      SELECT o.id, o.name, o.coordinates, oa.quantity, 'DALAM_NEGERI' as type
+      FROM ops_dalamnegri o
+      JOIN operation_assets oa ON o.id = oa.operation_id AND oa.operation_type = 'DALAM_NEGERI'
+      WHERE oa.asset_name = ? AND oa.quantity > 0
+    `, [itemName]);
+
+    // 3. In Operations (Luar Negeri)
+    const [ops_ln]: any = await pool.query(`
+      SELECT o.id, o.name, o.coordinates, oa.quantity, 'LUAR_NEGERI' as type
+      FROM ops_luarnegri o
+      JOIN operation_assets oa ON o.id = oa.operation_id AND oa.operation_type = 'LUAR_NEGERI'
+      WHERE oa.asset_name = ? AND oa.quantity > 0
+    `, [itemName]);
+
+    return {
+      units: units || [],
+      ops_dn: ops_dn || [],
+      ops_ln: ops_ln || []
+    };
+  } catch (error) {
+    console.error("Distribution Details Error:", error);
+    return { units: [], ops_dn: [], ops_ln: [] };
+  }
+}
+
+export async function getAllLogisticsLocations() {
+  try {
+    // 1. Units with any logistics
+    const [units]: any = await pool.query(`
+      SELECT u.id, u.unit_name as name, u.coordinates, 'UNIT' as type,
+             GROUP_CONCAT(CONCAT(l.item_name, ' (', l.quantity, ' ', l.unit, ')') SEPARATOR '\n') as items_summary
+      FROM units u
+      JOIN logistics l ON u.id = l.unit_id
+      WHERE l.quantity > 0 AND u.coordinates IS NOT NULL
+      GROUP BY u.id
+    `);
+
+    // 2. Operations (Dalam Negeri) with any assets
+    const [ops_dn]: any = await pool.query(`
+      SELECT o.id, o.name, o.coordinates, 'DALAM_NEGERI' as type,
+             GROUP_CONCAT(CONCAT(oa.asset_name, ' (', oa.quantity, ' ', oa.unit, ')') SEPARATOR '\n') as items_summary
+      FROM ops_dalamnegri o
+      JOIN operation_assets oa ON o.id = oa.operation_id AND oa.operation_type = 'DALAM_NEGERI'
+      WHERE oa.quantity > 0 AND o.coordinates IS NOT NULL
+      GROUP BY o.id
+    `);
+
+    // 3. Operations (Luar Negeri) with any assets
+    const [ops_ln]: any = await pool.query(`
+      SELECT o.id, o.name, o.coordinates, 'LUAR_NEGERI' as type,
+             GROUP_CONCAT(CONCAT(oa.asset_name, ' (', oa.quantity, ' ', oa.unit, ')') SEPARATOR '\n') as items_summary
+      FROM ops_luarnegri o
+      JOIN operation_assets oa ON o.id = oa.operation_id AND oa.operation_type = 'LUAR_NEGERI'
+      WHERE oa.quantity > 0 AND o.coordinates IS NOT NULL
+      GROUP BY o.id
+    `);
+
+    return {
+      units: units || [],
+      ops_dn: ops_dn || [],
+      ops_ln: ops_ln || []
+    };
+  } catch (error) {
+    console.error("All Distribution Locations Error:", error);
+    return { units: [], ops_dn: [], ops_ln: [] };
+  }
+}
+
+// 12. Situational Monitoring (IPOLEKSOSBUDHANKAM)
+export async function getSituationalMonitoring() {
+  try {
+    const [rows] = await pool.query(`
+      SELECT * FROM situational_monitoring 
+      ORDER BY FIELD(category, 'IDEOLOGI', 'POLITIK', 'EKONOMI', 'SOSIAL', 'BUDAYA', 'MILITER', 'KEAMANAN')
+    `);
+    return rows as any[];
+  } catch (error) {
+    console.error("Get Situational Monitoring Error:", error);
+    return [];
+  }
+}
 

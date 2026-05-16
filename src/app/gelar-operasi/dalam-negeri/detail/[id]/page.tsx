@@ -18,7 +18,8 @@ export default async function OperationDetailPage({ params }: { params: Promise<
     commander: assignments.find(a => a.role === 'KOMANDAN'),
     members: assignments.filter(a => a.role === 'ANGGOTA'),
     assets: assets,
-    coordinates: operation.coordinates
+    coordinates: operation.coordinates,
+    mission_objectives: operation.mission_objectives
   } : null;
   
   return (

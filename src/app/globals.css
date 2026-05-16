@@ -6,6 +6,10 @@
   --color-tactical-border: #281b1b;
   --color-tactical-green: #cc0000;
   --color-tactical-green-dim: rgba(204, 0, 0, 0.15);
+  --color-status-stabil: #00ff41;
+  --color-status-stabil-dim: rgba(0, 255, 65, 0.15);
+  --color-tactical-yellow: #fde047;
+  --color-tactical-yellow-dim: rgba(253, 224, 71, 0.15);
   --color-tactical-red: #ff3333;
   --color-tactical-red-dim: rgba(255, 51, 51, 0.15);
   --color-tactical-cyan: #00f0ff;

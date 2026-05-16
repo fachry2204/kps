@@ -15,103 +15,58 @@ import {
   ArrowUpRight,
   TrendingUp,
   AlertTriangle,
-  Info
+  Info,
+  Clock,
+  ExternalLink
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { getSituationalMonitoring } from "@/app/actions";
+import { cn } from "@/lib/utils";
+
+const categoryIcons: Record<string, any> = {
+  "IDEOLOGI": Shield,
+  "POLITIK": Globe,
+  "EKONOMI": Banknote,
+  "SOSIAL": Users,
+  "BUDAYA": Library,
+  "MILITER": Crosshair,
+  "KEAMANAN": Lock,
+};
+
+const statusStyles: Record<string, any> = {
+  "STABLE": "text-tactical-green bg-tactical-green/10 border-tactical-green/30",
+  "ACTIVE": "text-tactical-cyan bg-tactical-cyan/10 border-tactical-cyan/30",
+  "ELEVATED": "text-tactical-yellow bg-tactical-yellow/10 border-tactical-yellow/30",
+  "WATCH": "text-tactical-yellow bg-tactical-yellow/10 border-tactical-yellow/30",
+  "HIGH READY": "text-tactical-red bg-tactical-red/10 border-tactical-red/30",
+  "STANDBY": "text-blue-500 bg-blue-500/10 border-blue-500/30",
+};
 
 export default function MonitoringClient() {
   const [time, setTime] = useState(new Date());
+  const [monitoringData, setMonitoringData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    fetchData();
+    const fetchInterval = setInterval(fetchData, 30000); // Refresh every 30s
+    return () => {
+      clearInterval(timer);
+      clearInterval(fetchInterval);
+    };
   }, []);
 
-  const categories = [
-    { 
-      name: "IDEOLOGI", 
-      status: "STABLE", 
-      readiness: 95, 
-      icon: Shield, 
-      color: "text-tactical-green",
-      border: "border-tactical-green/30",
-      bg: "bg-tactical-green/5",
-      alerts: 0,
-      description: "Pemantauan ketahanan ideologi dan doktrin nasional."
-    },
-    { 
-      name: "POLITIK", 
-      status: "STABLE", 
-      readiness: 88, 
-      icon: Globe, 
-      color: "text-tactical-cyan",
-      border: "border-tactical-cyan/30",
-      bg: "bg-tactical-cyan/5",
-      alerts: 2,
-      description: "Stabilitas politik dan dinamika pemerintahan."
-    },
-    { 
-      name: "EKONOMI", 
-      status: "ELEVATED", 
-      readiness: 76, 
-      icon: Banknote, 
-      color: "text-tactical-yellow",
-      border: "border-tactical-yellow/30",
-      bg: "bg-tactical-yellow/5",
-      alerts: 5,
-      description: "Keamanan finansial dan logistik strategis."
-    },
-    { 
-      name: "SOSIAL", 
-      status: "STABLE", 
-      readiness: 92, 
-      icon: Users, 
-      color: "text-tactical-green",
-      border: "border-tactical-green/30",
-      bg: "bg-tactical-green/5",
-      alerts: 1,
-      description: "Kondisi demografi dan interaksi masyarakat."
-    },
-    { 
-      name: "BUDAYA", 
-      status: "STABLE", 
-      readiness: 98, 
-      icon: Library, 
-      color: "text-tactical-cyan",
-      border: "border-tactical-cyan/30",
-      bg: "bg-tactical-cyan/5",
-      alerts: 0,
-      description: "Ketahanan budaya dan integritas sosial."
-    },
-    { 
-      name: "MILITER", 
-      status: "HIGH READY", 
-      readiness: 100, 
-      icon: Crosshair, 
-      color: "text-tactical-red",
-      border: "border-tactical-red/30",
-      bg: "bg-tactical-red/5",
-      alerts: 3,
-      description: "Kesiapan tempur dan penggelaran pasukan."
-    },
-    { 
-      name: "KEAMANAN", 
-      status: "ACTIVE", 
-      readiness: 94, 
-      icon: Lock, 
-      color: "text-tactical-cyan",
-      border: "border-tactical-cyan/30",
-      bg: "bg-tactical-cyan/5",
-      alerts: 4,
-      description: "Keamanan internal dan pencegahan ancaman."
-    },
-  ];
-
-  const recentAlerts = [
-    { title: "UNIDENTIFIED DRONE", location: "Sector 4", time: "2 MIN AGO", type: "WARNING" },
-    { title: "ENCRYPTED SIGNAL DETECTED", location: "Unknown Origin", time: "15 MIN AGO", type: "INFO" },
-    { title: "PERIMETER BREACH ATTEMPT", location: "North Gate", time: "1 HOUR AGO", type: "CRITICAL" },
-  ];
+  const fetchData = async () => {
+    try {
+      const data = await getSituationalMonitoring();
+      setMonitoringData(data);
+    } catch (error) {
+      console.error("Fetch monitoring data failed:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -135,89 +90,115 @@ export default function MonitoringClient() {
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-        {/* Main Categories Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          {categories.map((cat, i) => (
-            <motion.div
-              key={cat.name}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className={`tactical-glass border ${cat.border} p-5 relative group cursor-pointer hover:bg-tactical-panel/40 transition-all`}
-            >
-              <div className={`absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity ${cat.color}`}>
-                <cat.icon size={64} />
-              </div>
-
-              <div className="flex justify-between items-start mb-4">
-                <div className={`p-2 rounded border ${cat.border} ${cat.bg}`}>
-                  <cat.icon size={18} className={cat.color} />
-                </div>
-                {cat.alerts > 0 && (
-                  <div className="flex items-center gap-1 bg-tactical-red/10 border border-tactical-red/30 px-2 py-0.5 rounded animate-pulse">
-                    <AlertTriangle size={10} className="text-tactical-red" />
-                    <span className="text-[9px] font-mono text-tactical-red font-bold">{cat.alerts}</span>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <h3 className="text-xs font-mono text-tactical-muted uppercase tracking-widest flex items-center gap-2">
-                  {cat.name}
-                  <TrendingUp size={10} className="text-tactical-green opacity-50" />
-                </h3>
-                <div className={`text-xl font-bold text-tactical-text font-mono mt-1`}>
-                  {cat.status}
-                </div>
-                <p className="text-[10px] text-tactical-muted font-mono mt-2 leading-relaxed h-8 line-clamp-2">
-                  {cat.description}
-                </p>
-              </div>
-
-              <div className="mt-6 space-y-2">
-                <div className="flex justify-between items-end">
-                  <span className="text-[9px] font-mono text-tactical-muted uppercase">Readiness</span>
-                  <span className={`text-[10px] font-mono font-bold ${cat.color}`}>{cat.readiness}%</span>
-                </div>
-                <div className="h-1 w-full bg-tactical-bg rounded-full overflow-hidden border border-tactical-border/50">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${cat.readiness}%` }}
-                    transition={{ duration: 1, delay: 0.5 + i * 0.1 }}
-                    className={`h-full ${cat.color.replace('text-', 'bg-')}`}
-                  />
-                </div>
-              </div>
-              
-              <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <ArrowUpRight size={14} className="text-tactical-muted" />
-              </div>
-            </motion.div>
-          ))}
-
-          {/* System Status Summary */}
-          <div className="md:col-span-2 xl:col-span-4 tactical-glass tactical-border p-6 bg-tactical-cyan/5 border-tactical-cyan/30 flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex-1">
-              <h3 className="text-sm font-bold text-tactical-text font-mono flex items-center gap-2 mb-4 uppercase">
-                <Cpu size={16} className="text-tactical-cyan" /> Intelligence Summary
-              </h3>
-              <p className="text-[10px] font-mono text-tactical-muted leading-relaxed uppercase italic border-l-2 border-tactical-cyan pl-3 max-w-2xl">
-                "Global monitoring engine is active. No major strategic breaches detected in the last 24 hours. Military readiness remains at peak capacity across all domestic sectors."
-              </p>
+        {/* Monitoring Table */}
+        <div className="tactical-glass border border-tactical-border overflow-hidden">
+          <div className="bg-tactical-panel/40 px-6 py-4 border-b border-tactical-border flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp size={16} className="text-tactical-cyan" />
+              <h3 className="text-xs font-black text-tactical-text uppercase tracking-widest font-mono">Laporan Situasi Terkini</h3>
             </div>
-            <div className="flex gap-12 pt-6 md:pt-0 border-t md:border-t-0 md:border-l border-tactical-cyan/20 pl-0 md:pl-12 w-full md:w-auto">
-               <div>
-                  <div className="text-[10px] font-mono text-tactical-muted uppercase mb-1">Global Threat Level</div>
-                  <div className="text-xl font-mono text-tactical-green font-bold">STABLE</div>
-               </div>
-               <div>
-                  <div className="text-[10px] font-mono text-tactical-muted uppercase mb-1">Active Surveillance</div>
-                  <div className="text-xl font-mono text-tactical-cyan font-bold">428 NODES</div>
-               </div>
-            </div>
+            {isLoading && (
+              <div className="flex items-center gap-2 text-[10px] text-tactical-cyan animate-pulse font-mono">
+                <Clock size={10} /> MENGAMBIL DATA...
+              </div>
+            )}
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-black/40 text-xs uppercase font-mono tracking-widest text-tactical-muted border-b border-tactical-border">
+                  <th className="px-6 py-4 font-black">Kategori</th>
+                  <th className="px-6 py-4 font-black">Status</th>
+                  <th className="px-6 py-4 font-black text-center">Readiness</th>
+                  <th className="px-6 py-4 font-black">Berita & Analisis Terkini</th>
+                  <th className="px-6 py-4 font-black text-right">Update</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-tactical-border/30">
+                {monitoringData.map((item, i) => {
+                  const Icon = categoryIcons[item.category] || Activity;
+                  const statusStyle = statusStyles[item.status] || "text-tactical-muted bg-tactical-muted/10 border-tactical-muted/30";
+                  
+                  return (
+                    <motion.tr 
+                      key={item.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      className="hover:bg-tactical-cyan/5 transition-colors group"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded bg-tactical-panel/50 border border-tactical-border group-hover:border-tactical-cyan/50 transition-all">
+                            <Icon size={18} className="text-tactical-cyan" />
+                          </div>
+                          <span className="text-sm font-black text-tactical-text uppercase tracking-wider">{item.category}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={cn(
+                          "px-3 py-1.5 rounded text-xs font-black border uppercase tracking-widest",
+                          statusStyle
+                        )}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 min-w-[150px]">
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between text-xs font-mono text-tactical-muted uppercase">
+                            <span>Kesiapan</span>
+                            <span className="text-tactical-cyan font-bold">{item.readiness}%</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-tactical-bg rounded-full overflow-hidden border border-tactical-border/30">
+                            <div 
+                              className="h-full bg-tactical-cyan" 
+                              style={{ width: `${item.readiness}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 max-w-md">
+                        <p className="text-xs text-tactical-muted leading-relaxed font-mono line-clamp-3 uppercase italic">
+                          "{item.news_summary}"
+                        </p>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="text-xs font-mono text-tactical-muted uppercase">
+                          {new Date(item.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
+                        </div>
+                      </td>
+                    </motion.tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Intelligence Summary Overlay */}
+        <div className="tactical-glass tactical-border p-6 bg-tactical-cyan/5 border-tactical-cyan/30 flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex-1 text-center md:text-left">
+            <h3 className="text-sm font-bold text-tactical-text font-mono flex items-center justify-center md:justify-start gap-2 mb-4 uppercase">
+              <Cpu size={18} className="text-tactical-cyan" /> Intelligence Summary
+            </h3>
+            <p className="text-xs font-mono text-tactical-muted leading-relaxed uppercase italic border-l-0 md:border-l-2 border-tactical-cyan pl-0 md:pl-3 max-w-2xl">
+              "Global monitoring engine is active. No major strategic breaches detected in the last 24 hours. Military readiness remains at peak capacity across all domestic sectors."
+            </p>
+          </div>
+          <div className="flex gap-12 pt-6 md:pt-0 border-t md:border-t-0 md:border-l border-tactical-cyan/20 pl-0 md:pl-12 w-full md:w-auto">
+             <div className="text-center md:text-left">
+                <div className="text-xs font-mono text-tactical-muted uppercase mb-1">Global Threat Level</div>
+                <div className="text-2xl font-mono text-tactical-green font-bold">STABLE</div>
+             </div>
+             <div className="text-center md:text-left">
+                <div className="text-xs font-mono text-tactical-muted uppercase mb-1">Active Surveillance</div>
+                <div className="text-2xl font-mono text-tactical-cyan font-bold">428 NODES</div>
+             </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
+

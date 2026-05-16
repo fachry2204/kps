@@ -1,10 +1,10 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, MapPin, Target, ArrowLeft, Loader2, Search, User, X, AlertCircle, Save, Plus, Edit } from "lucide-react";
+import { Shield, MapPin, Target, ArrowLeft, Loader2, Search, User, X, AlertCircle, Save, Plus, Edit, Package } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { updateOpDalamNegeri, updateOpLuarNegeri, searchPersonnel, getPersonnelAssignment, assignPersonnelToOp, getOpAssignments } from "@/app/actions";
+import { updateOpDalamNegeri, updateOpLuarNegeri, searchPersonnel, getPersonnelAssignment, assignPersonnelToOp, getOpAssignments, getLogistics, addOperationAsset, deleteOperationAsset, getOperationAssets } from "@/app/actions";
 import dynamic from "next/dynamic";
 import { Crosshair } from "lucide-react";
 
@@ -48,6 +48,32 @@ export default function EditOperationForm({ id, type, initialData }: EditOperati
   // Move Modal State
   const [personnelToMove, setPersonnelToMove] = useState<any>(null);
   const [pendingAssignment, setPendingAssignment] = useState<any>(null);
+  
+  // Logistics State
+  const [masterLogistics, setMasterLogistics] = useState<any[]>([]);
+  const [operationAssets, setOperationAssets] = useState<any[]>([]);
+  const [showLogisticsDropdown, setShowLogisticsDropdown] = useState<number | null>(null);
+  const [newAsset, setNewAsset] = useState({ asset_name: '', quantity: 1, unit: 'pcs', asset_type: 'SENJATA' as any });
+
+  useEffect(() => {
+    async function fetchData() {
+      const logs = await getLogistics();
+      // Group by name
+      const grouped: any[] = [];
+      const names = new Set();
+      logs.forEach((l: any) => {
+        if (!names.has(l.item_name)) {
+          grouped.push(l);
+          names.add(l.item_name);
+        }
+      });
+      setMasterLogistics(grouped);
+
+      const assets = await getOperationAssets(Number(id), type);
+      setOperationAssets(assets);
+    }
+    fetchData();
+  }, [id, type]);
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
@@ -141,6 +167,9 @@ export default function EditOperationForm({ id, type, initialData }: EditOperati
           });
         }
 
+        // Assets are handled individually via separate buttons in this edit mode 
+        // to simplify database operations (Add/Delete)
+        
         router.push(type === "DALAM_NEGERI" ? `/gelar-operasi/dalam-negeri/detail/${id}` : `/gelar-operasi/luar-negeri/detail/${id}`);
         router.refresh();
       } else {
@@ -150,6 +179,35 @@ export default function EditOperationForm({ id, type, initialData }: EditOperati
       console.error(error);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleAddAsset = async () => {
+    if (!newAsset.asset_name) return;
+    
+    const res = await addOperationAsset({
+      operation_id: Number(id),
+      operation_type: type,
+      asset_name: newAsset.asset_name,
+      asset_type: newAsset.asset_type,
+      quantity: newAsset.quantity,
+      condition_status: 'READY',
+      description: 'Added during operation update'
+    });
+
+    if (res.success) {
+      const updatedAssets = await getOperationAssets(Number(id), type);
+      setOperationAssets(updatedAssets);
+      setNewAsset({ asset_name: '', quantity: 1, unit: 'pcs', asset_type: 'SENJATA' });
+    }
+  };
+
+  const handleDeleteAsset = async (assetId: number) => {
+    if (confirm("Hapus alutsista ini dari operasi?")) {
+      const res = await deleteOperationAsset(assetId);
+      if (res.success) {
+        setOperationAssets(operationAssets.filter(a => a.id !== assetId));
+      }
     }
   };
 
@@ -218,6 +276,7 @@ export default function EditOperationForm({ id, type, initialData }: EditOperati
                     className="w-full bg-tactical-bg/50 border border-tactical-border rounded-lg p-2.5 text-sm text-tactical-text focus:border-tactical-cyan outline-none font-mono appearance-none"
                   >
                     <option value="ACTIVE">ACTIVE</option>
+                    <option value="ONGOING">ONGOING</option>
                     <option value="STANDBY">STANDBY</option>
                     <option value="MONITORING">MONITORING</option>
                     <option value="ON_ROTATION">ON ROTATION</option>
@@ -295,6 +354,119 @@ export default function EditOperationForm({ id, type, initialData }: EditOperati
             </form>
           </motion.div>
 
+          {/* Alutsista Management */}
+          <div className="tactical-glass tactical-border p-6 space-y-6">
+            <h3 className="text-sm font-bold text-tactical-text font-mono uppercase tracking-widest border-b border-tactical-border pb-2 flex items-center gap-2">
+              <Package size={16} className="text-tactical-cyan" /> Manajemen Alutsista Operasi
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-tactical-bg/30 p-4 border border-tactical-border rounded-lg relative">
+              <div className="md:col-span-6 space-y-2 relative">
+                <label className="text-[10px] font-mono text-tactical-muted uppercase">Pilih dari Logistik</label>
+                <input 
+                  value={newAsset.asset_name}
+                  onFocus={() => setShowLogisticsDropdown(999)}
+                  onChange={(e) => {
+                    setNewAsset({...newAsset, asset_name: e.target.value});
+                    setShowLogisticsDropdown(999);
+                  }}
+                  className="w-full bg-tactical-bg border border-tactical-border rounded p-2 text-xs text-tactical-text focus:border-tactical-cyan outline-none font-mono"
+                  placeholder="Cari Peralatan..."
+                />
+                <AnimatePresence>
+                  {showLogisticsDropdown === 999 && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowLogisticsDropdown(null)} />
+                      <motion.div 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute left-0 right-0 top-full mt-1 bg-tactical-panel border border-tactical-cyan/30 rounded shadow-xl z-20 max-h-48 overflow-y-auto custom-scrollbar"
+                      >
+                        {masterLogistics
+                          .filter(ml => ml.item_name.toLowerCase().includes(newAsset.asset_name.toLowerCase()))
+                          .map((ml, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => {
+                                setNewAsset({
+                                  ...newAsset, 
+                                  asset_name: ml.item_name, 
+                                  unit: ml.unit,
+                                  asset_type: ml.category === 'Senjata Jenis' ? 'SENJATA' : 'ALUTSISTA'
+                                });
+                                setShowLogisticsDropdown(null);
+                              }}
+                              className="w-full p-2 text-left text-[11px] font-mono hover:bg-tactical-cyan/10 text-tactical-text border-b border-tactical-border/30 last:border-0"
+                            >
+                              <div className="flex justify-between items-center">
+                                <span>{ml.item_name}</span>
+                                <span className="text-[9px] text-tactical-muted bg-tactical-bg px-1 rounded">{ml.category}</span>
+                              </div>
+                            </button>
+                          ))
+                        }
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+              <div className="md:col-span-2 space-y-2 text-center">
+                <label className="text-[10px] font-mono text-tactical-muted uppercase">Qty</label>
+                <input 
+                  type="number"
+                  value={newAsset.quantity}
+                  onChange={(e) => setNewAsset({...newAsset, quantity: parseInt(e.target.value)})}
+                  className="w-full bg-tactical-bg border border-tactical-border rounded p-2 text-xs text-tactical-text focus:border-tactical-cyan outline-none font-mono text-center"
+                />
+              </div>
+              <div className="md:col-span-2 space-y-2 text-center">
+                <label className="text-[10px] font-mono text-tactical-muted uppercase">Unit</label>
+                <div className="w-full bg-tactical-bg/50 border border-tactical-border rounded p-2 text-xs text-tactical-muted font-mono text-center">
+                  {newAsset.unit || '-'}
+                </div>
+              </div>
+              <div className="md:col-span-2">
+                <button 
+                  type="button"
+                  onClick={handleAddAsset}
+                  className="w-full py-2 bg-tactical-cyan text-black font-bold text-[10px] font-mono rounded hover:bg-tactical-cyan/80 transition-all uppercase"
+                >
+                  TAMBAH
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2 mt-4">
+              {operationAssets.length > 0 ? (
+                operationAssets.map((asset) => (
+                  <div key={asset.id} className="flex items-center justify-between p-3 bg-tactical-panel/30 border border-tactical-border rounded group hover:border-tactical-cyan/30 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="p-1.5 bg-tactical-bg rounded border border-tactical-border group-hover:border-tactical-cyan/30">
+                        <Package size={14} className="text-tactical-cyan" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-tactical-text uppercase tracking-tighter">{asset.asset_name}</div>
+                        <div className="text-[9px] font-mono text-tactical-muted uppercase">{asset.quantity} UNIT | {asset.asset_type}</div>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => handleDeleteAsset(asset.id)}
+                      className="p-1.5 text-tactical-muted hover:text-tactical-red transition-colors"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-tactical-muted italic font-mono text-center py-6 border border-dashed border-tactical-border rounded-lg">
+                  Belum ada alutsista ditugaskan.
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-8">
             <div className="tactical-glass tactical-border p-6 space-y-4">
               <h3 className="text-sm font-bold text-tactical-text font-mono uppercase tracking-widest border-b border-tactical-border pb-2 flex justify-between items-center">
@@ -335,28 +507,34 @@ export default function EditOperationForm({ id, type, initialData }: EditOperati
           </div>
         </div>
 
-        <div className="space-y-8">
-          <div className="tactical-glass border-l-4 border-l-tactical-cyan p-6 bg-tactical-cyan/5">
-            <h3 className="text-sm font-bold text-tactical-text font-mono mb-4 uppercase">Update Command</h3>
-            <div className="space-y-4 mb-6">
-              <div className="flex justify-between text-xs font-mono">
-                <span className="text-tactical-muted">Deployment Force</span>
-                <span className="text-tactical-cyan font-bold">{(commander ? 1 : 0) + members.length} Total Personnel</span>
+        <div className="lg:col-span-1">
+          <div className="sticky top-8 space-y-8">
+            <div className="tactical-glass border-l-4 border-l-tactical-cyan p-6 bg-tactical-cyan/5 shadow-[0_0_30px_rgba(34,211,238,0.1)]">
+              <h3 className="text-sm font-bold text-tactical-text font-mono mb-4 uppercase flex items-center gap-2">
+                <Shield size={16} className="text-tactical-cyan" /> Update Command
+              </h3>
+              <div className="space-y-4 mb-6">
+                <div className="flex justify-between text-xs font-mono">
+                  <span className="text-tactical-muted">Deployment Force</span>
+                  <span className="text-tactical-cyan font-bold">{(commander ? 1 : 0) + members.length} Total Personnel</span>
+                </div>
+                <div className="flex justify-between text-xs font-mono">
+                  <span className="text-tactical-muted">Status</span>
+                  <span className="text-tactical-cyan uppercase font-bold">{formData.status}</span>
+                </div>
               </div>
-              <div className="flex justify-between text-xs font-mono">
-                <span className="text-tactical-muted">Status</span>
-                <span className="text-tactical-cyan">{formData.status}</span>
-              </div>
+              <p className="text-[10px] text-tactical-muted font-mono mb-6 italic border-t border-tactical-cyan/20 pt-4 uppercase leading-relaxed">
+                Ensure all personnel assignments are validated before confirming tactical updates to the mission parameters.
+              </p>
+              <button 
+                form="editForm"
+                disabled={isSubmitting}
+                className="w-full py-4 bg-tactical-cyan text-black font-black text-sm font-mono rounded hover:bg-tactical-cyan/80 transition-all flex items-center justify-center gap-2 uppercase tracking-widest disabled:opacity-50 shadow-[0_4px_15px_rgba(34,211,238,0.3)] hover:shadow-[0_6px_20px_rgba(34,211,238,0.4)]"
+              >
+                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+                SAVE CHANGES
+              </button>
             </div>
-            <p className="text-xs text-tactical-muted font-mono mb-6 italic border-t border-tactical-cyan/20 pt-4">Ensure all personnel assignments are validated before confirming updates.</p>
-            <button 
-              form="editForm"
-              disabled={isSubmitting}
-              className="w-full py-4 bg-tactical-cyan text-black font-black text-sm font-mono rounded hover:bg-tactical-cyan/80 transition-all flex items-center justify-center gap-2 uppercase tracking-widest disabled:opacity-50"
-            >
-              {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-              SAVE CHANGES
-            </button>
           </div>
         </div>
       </div>

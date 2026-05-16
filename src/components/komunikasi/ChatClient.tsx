@@ -11,9 +11,18 @@ const CURRENT_USER_ID = 1; // Asumsi login sebagai ID 1 (Administrator)
 export default function ChatClient() {
   const searchParams = useSearchParams();
   const unitId = searchParams.get('unitId');
+  const opId = searchParams.get('opId');
+  const contactId = searchParams.get('id') || searchParams.get('to');
   
   const [contacts, setContacts] = useState<any[]>([]);
   const [activeContact, setActiveContact] = useState<number | null>(null);
+
+  // Set active contact from URL parameter if present
+  useEffect(() => {
+    if (contactId) {
+      setActiveContact(parseInt(contactId));
+    }
+  }, [contactId]);
   const [messages, setMessages] = useState<any[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -25,13 +34,17 @@ export default function ChatClient() {
   // Poll contacts list
   useEffect(() => {
     const fetchContacts = async () => {
-      const data = await getChatContacts(CURRENT_USER_ID, unitId ? parseInt(unitId) : undefined);
+      const data = await getChatContacts(
+        CURRENT_USER_ID, 
+        unitId ? parseInt(unitId) : undefined,
+        opId ? parseInt(opId) : undefined
+      );
       setContacts(data);
     };
     fetchContacts();
     const interval = setInterval(fetchContacts, 5000);
     return () => clearInterval(interval);
-  }, [unitId]);
+  }, [unitId, opId]);
 
   // Poll messages for active contact
   useEffect(() => {
@@ -142,7 +155,7 @@ export default function ChatClient() {
               )}
               <div className="relative shrink-0">
                 {contact.photo_url ? (
-                   <img src={contact.photo_url} alt={contact.name} className="w-12 h-12 rounded-full border border-tactical-border object-cover" />
+                   <img src={contact.photo_url} alt={contact.name} className="w-12 h-12 rounded-full border border-tactical-border object-cover invert grayscale contrast-125 brightness-110 opacity-80 group-hover:opacity-100 transition-all" />
                 ) : (
                    <div className="w-12 h-12 rounded-full bg-tactical-panel border border-tactical-border flex items-center justify-center overflow-hidden">
                      <User className="text-tactical-muted w-6 h-6" />
@@ -192,7 +205,7 @@ export default function ChatClient() {
               <div className="flex items-center gap-4">
                 <div className="relative">
                   {activeUser?.photo_url ? (
-                     <img src={activeUser.photo_url} alt={activeUser.name} className="w-10 h-10 rounded-full border border-tactical-border object-cover" />
+                     <img src={activeUser.photo_url} alt={activeUser.name} className="w-10 h-10 rounded-full border border-tactical-border object-cover invert grayscale contrast-125 brightness-110 opacity-80" />
                   ) : (
                      <div className="w-10 h-10 rounded-full bg-tactical-bg border border-tactical-border flex items-center justify-center">
                        <User className="text-tactical-muted w-5 h-5" />

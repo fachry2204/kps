@@ -1,9 +1,9 @@
 "use client";
 
-import { Package, Truck, AlertTriangle, PenTool, Search, Plus, Filter, Image as ImageIcon, Eye, Edit, Trash2 } from "lucide-react";
+import { Package, Truck, AlertTriangle, PenTool, Search, Plus, Filter, Image as ImageIcon, Eye, Edit, Trash2, Shield, Target } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { deleteLogistics } from "@/app/actions";
 
@@ -17,13 +17,15 @@ interface LogisticItem {
   condition_status: string;
   image_url?: string;
   unit_name?: string;
+  unit_id?: number | null;
 }
 
 interface LogisticsClientProps {
   items: LogisticItem[];
+  operationAssetsTotal: number;
 }
 
-export default function LogisticsClient({ items }: LogisticsClientProps) {
+export default function LogisticsClient({ items, operationAssetsTotal }: LogisticsClientProps) {
   const router = useRouter();
 
   const handleDelete = async (id: number) => {
@@ -39,10 +41,31 @@ export default function LogisticsClient({ items }: LogisticsClientProps) {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("SIAP_OPS");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
-  const totalItems = items.reduce((acc, item) => acc + item.quantity, 0);
-  const lowStock = items.filter(item => item.quantity < item.min_stock_level).length;
-  const maintenance = items.filter(item => item.condition_status === 'MAINTENANCE' || item.condition_status === 'REPAIR').length;
+  const alutsistaItems = items.filter(i => i.category === 'Rantis' || i.category === 'Senjata Jenis');
+  
+  // 1. SIAP OPS: Items in logistics with no unit_id
+  const alutsistaSiapOperasi = alutsistaItems
+    .filter(i => !i.unit_id)
+    .reduce((acc, item) => acc + item.quantity, 0);
+ 
+  // 2. DI KESATUAN: Items in logistics with unit_id
+  const alutsistaInUnits = alutsistaItems
+    .filter(i => i.unit_id)
+    .reduce((acc, item) => acc + item.quantity, 0);
+    
+  // 3. BEROPERASI: In Kesatuan + In Operations (from operation_assets table)
+  const alutsistaBeroperasi = alutsistaInUnits + (Number(operationAssetsTotal) || 0);
+
+  // 4. TOTAL: Siap Ops + Beroperasi
+  const totalAlutsista = alutsistaSiapOperasi + alutsistaBeroperasi;
+
+  const alutsistaEfektif = alutsistaItems.filter(i => i.condition_status.toLowerCase().includes('efektif') && !i.condition_status.toLowerCase().includes('tidak')).reduce((acc, item) => acc + item.quantity, 0);
+  const alutsistaNonEfektif = totalAlutsista - alutsistaEfektif;
+
 
   const categories = useMemo(() => {
     const cats = items.map(item => item.category);
@@ -50,13 +73,53 @@ export default function LogisticsClient({ items }: LogisticsClientProps) {
   }, [items]);
 
   const filteredItems = useMemo(() => {
-    return items.filter(item => {
+    const baseFiltered = items.filter(item => {
       const matchesSearch = item.item_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             `ITEM-${item.id}`.includes(searchQuery.toUpperCase());
       const matchesCategory = categoryFilter === "ALL" || item.category === categoryFilter;
-      return matchesSearch && matchesCategory;
+      
+      const itemStatus = (item.condition_status || "").toLowerCase();
+      const isEfektif = itemStatus.includes('efektif') && !itemStatus.includes('tidak');
+      const isTidakEfektif = itemStatus.includes('tidak');
+      
+      const matchesStatus = statusFilter === "ALL" || 
+                           (statusFilter === "EFEKTIF" && isEfektif) ||
+                           (statusFilter === "TIDAK_EFEKTIF" && isTidakEfektif) ||
+                           (statusFilter === "SIAP_OPS" && !item.unit_id) ||
+                           (statusFilter === "BEROPERASI" && item.unit_id);
+                           
+      return matchesSearch && matchesCategory && matchesStatus;
     });
-  }, [items, searchQuery, categoryFilter]);
+
+    // GROUPING LOGIC: Merge items with same name
+    const groupedMap = new Map<string, LogisticItem>();
+    
+    baseFiltered.forEach(item => {
+      if (groupedMap.has(item.item_name)) {
+        const existing = groupedMap.get(item.item_name)!;
+        existing.quantity += item.quantity;
+        // If any part of the group is not 'efektif', reflect that or keep the primary
+        if (item.condition_status.toLowerCase().includes('tidak')) {
+          existing.condition_status = item.condition_status;
+        }
+      } else {
+        groupedMap.set(item.item_name, { ...item });
+      }
+    });
+
+    return Array.from(groupedMap.values());
+  }, [items, searchQuery, categoryFilter, statusFilter]);
+
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredItems.slice(start, start + itemsPerPage);
+  }, [filteredItems, currentPage]);
+
+  // Reset to first page when filtering
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, categoryFilter, statusFilter]);
 
   return (
     <div className="space-y-6">
@@ -66,7 +129,7 @@ export default function LogisticsClient({ items }: LogisticsClientProps) {
             <Package className="text-tactical-green" />
             LOGISTIK & PERALATAN
           </h2>
-          <p className="text-tactical-muted font-mono text-sm mt-1">SUPPLY CHAIN & ASSET TRACKING</p>
+          <p className="text-tactical-muted font-mono text-sm mt-1">RANTAI PASOKAN & PELACAKAN ASET</p>
         </div>
         <Link href="/logistics/add">
           <button className="bg-tactical-green text-tactical-bg px-4 py-2 font-bold font-mono rounded text-sm hover:bg-tactical-green/90 transition-colors flex items-center gap-2">
@@ -75,34 +138,75 @@ export default function LogisticsClient({ items }: LogisticsClientProps) {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="tactical-glass tactical-border p-4 bg-tactical-green/5 border-tactical-green">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* 1. TOTAL ALUTSISTA */}
+        <div 
+          onClick={() => setStatusFilter("ALL")}
+          className={`tactical-glass tactical-border p-4 transition-all cursor-pointer hover:border-tactical-cyan/80 group ${
+            statusFilter === "ALL" ? 'bg-tactical-cyan/10 border-tactical-cyan' : 'bg-tactical-bg border-tactical-border'
+          }`}
+        >
           <div className="flex items-center gap-3 mb-2">
-            <Package className="w-5 h-5 text-tactical-green" />
-            <span className="text-sm font-bold">TOTAL ASET</span>
+            <Package className={`w-5 h-5 ${statusFilter === "ALL" ? 'text-tactical-cyan' : 'text-tactical-muted'}`} />
+            <span className={`text-[10px] font-mono font-bold uppercase ${statusFilter === "ALL" ? 'text-tactical-cyan' : 'text-tactical-muted'}`}>TOTAL ALUTSISTA</span>
           </div>
-          <div className="text-2xl font-bold text-tactical-text font-mono">{totalItems.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-tactical-text font-mono">{totalAlutsista.toLocaleString()}</div>
         </div>
-        <div className="tactical-glass tactical-border p-4">
+        
+        {/* 2. SIAP OPS (DEFAULT) */}
+        <div 
+          onClick={() => setStatusFilter("SIAP_OPS")}
+          className={`tactical-glass tactical-border p-4 transition-all cursor-pointer hover:border-tactical-cyan/80 group ${
+            statusFilter === "SIAP_OPS" ? 'bg-tactical-cyan/10 border-tactical-cyan' : 'bg-tactical-bg border-tactical-border'
+          }`}
+        >
           <div className="flex items-center gap-3 mb-2">
-            <Truck className="w-5 h-5 text-tactical-cyan" />
-            <span className="text-sm font-bold">STOK TERSEDIA</span>
+            <Target className={`w-5 h-5 ${statusFilter === "SIAP_OPS" ? 'text-tactical-cyan' : 'text-tactical-muted'}`} />
+            <span className={`text-[10px] font-mono font-bold uppercase ${statusFilter === "SIAP_OPS" ? 'text-tactical-cyan' : 'text-tactical-muted'}`}>ALUTSISTA SIAP OPS</span>
           </div>
-          <div className="text-2xl font-bold text-tactical-cyan font-mono">{items.length}</div>
+          <div className="text-2xl font-bold text-tactical-cyan font-mono">{alutsistaSiapOperasi.toLocaleString()}</div>
         </div>
-        <div className="tactical-glass tactical-border p-4">
+
+        {/* 3. EFEKTIF */}
+        <div 
+          onClick={() => setStatusFilter("EFEKTIF")}
+          className={`tactical-glass tactical-border p-4 transition-all cursor-pointer hover:border-tactical-green/80 group ${
+            statusFilter === "EFEKTIF" ? 'bg-tactical-green/10 border-tactical-green' : 'bg-tactical-bg border-tactical-border'
+          }`}
+        >
           <div className="flex items-center gap-3 mb-2">
-            <PenTool className="w-5 h-5 text-yellow-500" />
-            <span className="text-sm font-bold">MAINTENANCE</span>
+            <Shield className={`w-5 h-5 ${statusFilter === "EFEKTIF" ? 'text-tactical-green' : 'text-tactical-muted'}`} />
+            <span className={`text-[10px] font-mono font-bold uppercase ${statusFilter === "EFEKTIF" ? 'text-tactical-green' : 'text-tactical-muted'}`}>ALUTSISTA EFEKTIF</span>
           </div>
-          <div className="text-2xl font-bold text-yellow-500 font-mono">{maintenance}</div>
+          <div className="text-2xl font-bold text-tactical-green font-mono">{alutsistaEfektif.toLocaleString()}</div>
         </div>
-        <div className="tactical-glass tactical-border p-4 bg-tactical-red/5 border-tactical-red">
+
+        {/* 4. NON EFEKTIF */}
+        <div 
+          onClick={() => setStatusFilter("TIDAK_EFEKTIF")}
+          className={`tactical-glass tactical-border p-4 transition-all cursor-pointer hover:border-tactical-red/80 group ${
+            statusFilter === "TIDAK_EFEKTIF" ? 'bg-tactical-red/10 border-tactical-red' : 'bg-tactical-bg border-tactical-border'
+          }`}
+        >
           <div className="flex items-center gap-3 mb-2">
-            <AlertTriangle className="w-5 h-5 text-tactical-red" />
-            <span className="text-sm font-bold">LOW STOCK ALERTS</span>
+            <AlertTriangle className={`w-5 h-5 ${statusFilter === "TIDAK_EFEKTIF" ? 'text-tactical-red' : 'text-tactical-muted'}`} />
+            <span className={`text-[10px] font-mono font-bold uppercase ${statusFilter === "TIDAK_EFEKTIF" ? 'text-tactical-red' : 'text-tactical-muted'}`}>ALUTSISTA NON EFEKTIF</span>
           </div>
-          <div className="text-2xl font-bold text-tactical-red font-mono">{lowStock}</div>
+          <div className="text-2xl font-bold text-tactical-red font-mono">{alutsistaNonEfektif.toLocaleString()}</div>
+        </div>
+
+        {/* 5. BEROPERASI */}
+        <div 
+          onClick={() => setStatusFilter("BEROPERASI")}
+          className={`tactical-glass tactical-border p-4 transition-all cursor-pointer hover:border-tactical-yellow/80 group ${
+            statusFilter === "BEROPERASI" ? 'bg-tactical-yellow/10 border-tactical-yellow' : 'bg-tactical-bg border-tactical-border'
+          }`}
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <Truck className={`w-5 h-5 ${statusFilter === "BEROPERASI" ? 'text-tactical-yellow' : 'text-tactical-muted'}`} />
+            <span className={`text-[10px] font-mono font-bold uppercase ${statusFilter === "BEROPERASI" ? 'text-tactical-yellow' : 'text-tactical-muted'}`}>ALUTSISTA BEROPERASI</span>
+          </div>
+          <div className="text-2xl font-bold text-tactical-yellow font-mono">{alutsistaBeroperasi.toLocaleString()}</div>
         </div>
       </div>
 
@@ -130,9 +234,26 @@ export default function LogisticsClient({ items }: LogisticsClientProps) {
                 className="w-full md:w-48 bg-tactical-bg border border-tactical-border rounded pl-10 pr-4 py-2 text-sm text-tactical-text focus:outline-none focus:border-tactical-green transition-colors appearance-none"
               >
                 <option value="ALL">Semua Kategori</option>
-                {categories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
+                <option value="Senjata Jenis">Senjata Jenis</option>
+                <option value="Alkapsus">Alkapsus</option>
+                <option value="Rantis">Rantis</option>
+                <option value="Optik">Optik</option>
+                <option value="Handak">Handak</option>
+                <option value="Lain-Lain">Lain-Lain</option>
+              </select>
+            </div>
+            <div className="relative">
+              <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tactical-muted" />
+              <select 
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full md:w-48 bg-tactical-bg border border-tactical-border rounded pl-10 pr-4 py-2 text-sm text-tactical-text focus:outline-none focus:border-tactical-green transition-colors appearance-none cursor-pointer"
+              >
+                <option value="ALL">Semua Kondisi</option>
+                <option value="SIAP_OPS">ALUTSISTA SIAP OPS</option>
+                <option value="EFEKTIF">EFEKTIF</option>
+                <option value="TIDAK_EFEKTIF">TIDAK EFEKTIF</option>
+                <option value="BEROPERASI">BEROPERASI</option>
               </select>
             </div>
           </div>
@@ -146,14 +267,13 @@ export default function LogisticsClient({ items }: LogisticsClientProps) {
                 <th className="py-3 px-4">NAMA BARANG</th>
                 <th className="py-3 px-4 text-left">KATEGORI</th>
                 <th className="py-3 px-4 text-left">STOK</th>
-                <th className="py-3 px-4 text-left">UNIT SATUAN</th>
                 <th className="py-3 px-4 text-left">KONDISI</th>
                 <th className="py-3 px-4 text-right">AKSI</th>
               </tr>
             </thead>
             <tbody className="text-sm">
               <AnimatePresence>
-                {filteredItems.map((item, i) => (
+                {paginatedItems.map((item, i) => (
                   <motion.tr 
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -179,14 +299,15 @@ export default function LogisticsClient({ items }: LogisticsClientProps) {
                   </td>
                   <td className="py-3 px-4 text-tactical-muted text-xs">{item.category}</td>
                   <td className="py-3 px-4 font-mono text-xs">{item.quantity} {item.unit}</td>
-                  <td className="py-3 px-4 text-xs font-mono text-tactical-muted">{item.unit_name || 'Gudang Pusat'}</td>
                   <td className="py-3 px-4">
-                    <span className={`px-2 py-1 text-[10px] font-bold rounded border ${
-                      item.condition_status === 'GOOD' ? 'bg-tactical-green/10 border-tactical-green text-tactical-green' :
-                      item.quantity < item.min_stock_level ? 'bg-tactical-red/10 border-tactical-red text-tactical-red' :
-                      'bg-yellow-500/10 border-yellow-500 text-yellow-500'
+                    <span className={`px-3 py-1 text-[10px] font-black rounded transition-all uppercase tracking-widest shadow-[0_0_15px_rgba(0,0,0,0.5)] ${
+                      (item.condition_status || "").toLowerCase().includes('tidak') 
+                        ? 'bg-tactical-red text-white shadow-[0_0_10px_rgba(239,68,68,0.4)]'
+                        : (item.condition_status || "").toLowerCase().includes('efektif')
+                          ? 'bg-[#22c55e] text-white shadow-[0_0_10px_rgba(34,197,94,0.4)]'
+                          : 'bg-tactical-red text-white shadow-[0_0_10px_rgba(239,68,68,0.4)]'
                     }`}>
-                      {item.condition_status.toUpperCase()}
+                      {item.condition_status}
                     </span>
                   </td>
                   <td className="py-3 px-4 text-right">
@@ -219,6 +340,46 @@ export default function LogisticsClient({ items }: LogisticsClientProps) {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex justify-between items-center mt-6 pt-4 border-t border-tactical-border/50">
+            <div className="text-xs text-tactical-muted font-mono">
+              MENAMPILKAN <span className="text-tactical-text">{(currentPage - 1) * itemsPerPage + 1}</span> - <span className="text-tactical-text">{Math.min(currentPage * itemsPerPage, filteredItems.length)}</span> DARI <span className="text-tactical-text">{filteredItems.length}</span> ASET
+            </div>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 bg-tactical-panel border border-tactical-border rounded text-xs font-bold text-tactical-text hover:bg-tactical-border/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                PREV
+              </button>
+              <div className="flex gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-8 h-8 flex items-center justify-center rounded text-xs font-mono font-bold transition-all ${
+                      currentPage === page 
+                        ? 'bg-tactical-green text-black shadow-[0_0_10px_rgba(34,197,94,0.3)]' 
+                        : 'bg-tactical-panel border border-tactical-border text-tactical-muted hover:text-tactical-text'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+              <button 
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 bg-tactical-panel border border-tactical-border rounded text-xs font-bold text-tactical-text hover:bg-tactical-border/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                NEXT
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

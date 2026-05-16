@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Shield, MapPin, Target, Plus, ArrowLeft, Loader2, Search, User, X, AlertCircle, Crosshair, Package, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { addOpDalamNegeri, addOpLuarNegeri, searchPersonnel, getPersonnelAssignment, assignPersonnelToOp, addOperationLogistics } from "@/app/actions";
+import { addOpDalamNegeri, addOpLuarNegeri, searchPersonnel, getPersonnelAssignment, assignPersonnelToOp, addOperationLogistics, getLogistics } from "@/app/actions";
 import dynamic from "next/dynamic";
 
 const LocationPicker = dynamic(() => import("../units/LocationPicker"), { 
@@ -50,6 +50,28 @@ export default function AddOperationForm({ type }: AddOperationFormProps) {
   // Move Modal State
   const [personnelToMove, setPersonnelToMove] = useState<any>(null);
   const [pendingAssignment, setPendingAssignment] = useState<any>(null);
+  
+  // Logistics Master Data
+  const [masterLogistics, setMasterLogistics] = useState<any[]>([]);
+  const [logisticsSearch, setLogisticsSearch] = useState<string[]>([]); // To track search strings for each row
+  const [showLogisticsDropdown, setShowLogisticsDropdown] = useState<number | null>(null);
+
+  useEffect(() => {
+    async function fetchLogistics() {
+      const logs = await getLogistics();
+      // Group by name for the selection dropdown
+      const grouped: any[] = [];
+      const names = new Set();
+      logs.forEach((l: any) => {
+        if (!names.has(l.item_name)) {
+          grouped.push(l);
+          names.add(l.item_name);
+        }
+      });
+      setMasterLogistics(grouped);
+    }
+    fetchLogistics();
+  }, []);
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
@@ -317,17 +339,63 @@ export default function AddOperationForm({ type }: AddOperationFormProps) {
                   <div className="space-y-3">
                     {operationLogistics.map((item, index) => (
                       <div key={index} className="flex gap-4 items-end animate-in fade-in slide-in-from-top-1">
-                        <div className="flex-1 space-y-1">
+                        <div className="flex-1 space-y-1 relative">
                           <input 
                             value={item.item_name}
+                            onFocus={() => setShowLogisticsDropdown(index)}
                             onChange={(e) => {
                               const newLog = [...operationLogistics];
                               newLog[index].item_name = e.target.value;
                               setOperationLogistics(newLog);
+                              setShowLogisticsDropdown(index);
                             }}
                             className="w-full bg-tactical-bg/30 border border-tactical-border rounded p-2 text-xs text-tactical-text focus:border-tactical-cyan outline-none font-mono"
-                            placeholder="Nama Peralatan (contoh: Senjata SS2, Ransum, HT)"
+                            placeholder="Cari Alutsista dari Logistik..."
                           />
+                          <AnimatePresence>
+                            {showLogisticsDropdown === index && (
+                              <>
+                                <div 
+                                  className="fixed inset-0 z-10" 
+                                  onClick={() => setShowLogisticsDropdown(null)} 
+                                />
+                                <motion.div 
+                                  initial={{ opacity: 0, y: -10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -10 }}
+                                  className="absolute left-0 right-0 top-full mt-1 bg-tactical-panel border border-tactical-cyan/30 rounded shadow-xl z-20 max-h-48 overflow-y-auto custom-scrollbar"
+                                >
+                                  {masterLogistics
+                                    .filter(ml => ml.item_name.toLowerCase().includes(item.item_name.toLowerCase()))
+                                    .map((ml, i) => (
+                                      <button
+                                        key={i}
+                                        type="button"
+                                        onClick={() => {
+                                          const newLog = [...operationLogistics];
+                                          newLog[index].item_name = ml.item_name;
+                                          newLog[index].unit = ml.unit;
+                                          setOperationLogistics(newLog);
+                                          setShowLogisticsDropdown(null);
+                                        }}
+                                        className="w-full p-2 text-left text-[11px] font-mono hover:bg-tactical-cyan/10 text-tactical-text border-b border-tactical-border/30 last:border-0"
+                                      >
+                                        <div className="flex justify-between items-center">
+                                          <span>{ml.item_name}</span>
+                                          <span className="text-[9px] text-tactical-muted bg-tactical-bg px-1 rounded">{ml.category}</span>
+                                        </div>
+                                      </button>
+                                    ))
+                                  }
+                                  {masterLogistics.filter(ml => ml.item_name.toLowerCase().includes(item.item_name.toLowerCase())).length === 0 && (
+                                    <div className="p-4 text-[10px] font-mono text-tactical-muted italic text-center">
+                                      Tidak ada data logistik ditemukan
+                                    </div>
+                                  )}
+                                </motion.div>
+                              </>
+                            )}
+                          </AnimatePresence>
                         </div>
                         <div className="w-24 space-y-1">
                           <input 
@@ -345,12 +413,8 @@ export default function AddOperationForm({ type }: AddOperationFormProps) {
                         <div className="w-20 space-y-1">
                           <input 
                             value={item.unit}
-                            onChange={(e) => {
-                              const newLog = [...operationLogistics];
-                              newLog[index].unit = e.target.value;
-                              setOperationLogistics(newLog);
-                            }}
-                            className="w-full bg-tactical-bg/30 border border-tactical-border rounded p-2 text-xs text-tactical-text focus:border-tactical-cyan outline-none font-mono text-center"
+                            readOnly
+                            className="w-full bg-tactical-bg/10 border border-tactical-border/50 rounded p-2 text-xs text-tactical-muted outline-none font-mono text-center"
                             placeholder="Unit"
                           />
                         </div>

@@ -51,6 +51,23 @@ export default function AddPersonnelForm() {
     );
   };
 
+  const addManualSpec = () => {
+    if (otherSpec.trim()) {
+      const trimmed = otherSpec.trim().toUpperCase();
+      if (!selectedSpecs.includes(trimmed)) {
+        setSelectedSpecs(prev => [...prev, trimmed]);
+      }
+      setOtherSpec("");
+    }
+  };
+
+  const handleOtherSpecKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addManualSpec();
+    }
+  };
+
   const handleSearchAddress = async () => {
     if (!address || address.length < 5) return;
     
@@ -98,9 +115,6 @@ export default function AddPersonnelForm() {
     const formData = new FormData(e.currentTarget);
     
     const finalSpecs = [...selectedSpecs];
-    if (isOtherSelected && otherSpec) {
-      finalSpecs.push(otherSpec);
-    }
     
     const data = {
       name: formData.get("name") as string,
@@ -259,30 +273,33 @@ export default function AddPersonnelForm() {
                     <motion.div 
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="mt-2"
+                      className="mt-2 flex gap-2"
                     >
                       <input 
                         type="text"
-                        placeholder="MASUKKAN SPESIALISASI LAIN..."
+                        placeholder="KETIK & TEKAN ENTER UNTUK MENAMBAH..."
                         value={otherSpec}
                         onChange={(e) => setOtherSpec(e.target.value)}
-                        className="w-full bg-tactical-bg border border-tactical-cyan/30 rounded px-4 py-2 text-[10px] font-mono text-tactical-cyan focus:outline-none focus:border-tactical-cyan transition-colors"
+                        onKeyDown={handleOtherSpecKeyDown}
+                        className="flex-1 bg-tactical-bg border border-tactical-cyan/30 rounded px-4 py-2 text-[10px] font-mono text-tactical-cyan focus:outline-none focus:border-tactical-cyan transition-colors"
                       />
+                      <button 
+                        type="button"
+                        onClick={addManualSpec}
+                        className="px-4 py-2 bg-tactical-cyan/10 border border-tactical-cyan text-tactical-cyan rounded text-[10px] font-mono hover:bg-tactical-cyan hover:text-tactical-bg transition-all"
+                      >
+                        TAMBAH
+                      </button>
                     </motion.div>
                   )}
                   
-                  {selectedSpecs.length > 0 || (isOtherSelected && otherSpec) ? (
+                  {selectedSpecs.length > 0 ? (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {selectedSpecs.map(s => (
                         <span key={s} className="px-1.5 py-0.5 bg-tactical-green/10 text-tactical-green border border-tactical-green/30 text-[8px] font-mono font-bold rounded flex items-center gap-1">
                           {s} <X size={8} className="cursor-pointer" onClick={() => toggleSpec(s)} />
                         </span>
                       ))}
-                      {isOtherSelected && otherSpec && (
-                        <span className="px-1.5 py-0.5 bg-tactical-cyan/10 text-tactical-cyan border border-tactical-cyan/30 text-[8px] font-mono font-bold rounded flex items-center gap-1">
-                          {otherSpec} <X size={8} className="cursor-pointer" onClick={() => {setIsOtherSelected(false); setOtherSpec("");}} />
-                        </span>
-                      )}
                     </div>
                   ) : null}
                 </div>
