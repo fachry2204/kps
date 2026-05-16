@@ -90,7 +90,9 @@ export default function GlobeComponent({
         bearing: 0,
         antialias: true,
         padding: { top: 0, bottom: 150, left: 0, right: 0 },
-        attributionControl: false
+        attributionControl: false,
+        scrollZoom: true,
+        dragRotate: true
       } as any);
 
         map.current.on('style.load', () => {
@@ -157,6 +159,29 @@ export default function GlobeComponent({
     };
   }, []);
 
+  // Global listener for Intel Detail button in popups
+  useEffect(() => {
+    const handlePopupClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const btn = target.closest('.intel-detail-btn');
+      if (btn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const intelId = btn.getAttribute('data-id');
+        if (intelId) {
+          const report = intelReports.find(r => r.id.toString() === intelId);
+          if (report) {
+            if (setSelectedEntity) setSelectedEntity(report);
+            if (setActiveModal) setActiveModal('INTEL_DETAIL');
+          }
+        }
+      }
+    };
+
+    document.addEventListener('click', handlePopupClick, true);
+    return () => document.removeEventListener('click', handlePopupClick, true);
+  }, [intelReports, setSelectedEntity, setActiveModal]);
+
   // Sync Marker styles with Detailed Tactical Requirements
   useEffect(() => {
     if (!map.current) return;
@@ -219,7 +244,7 @@ export default function GlobeComponent({
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="12" r="3"/></svg>
                     ${data.location_tag}
                  </div>
-                 <div style="padding: 6px 12px; background: rgba(34, 211, 238, 0.1); border: 1px solid #22d3ee; color: #22d3ee; font-size: 11px; font-weight: 900; border-radius: 4px; cursor: pointer; text-transform: uppercase;">LIHAT DETAIL</div>
+                 <div class="intel-detail-btn" data-id="${data.id}" style="padding: 6px 12px; background: rgba(34, 211, 238, 0.1); border: 1px solid #22d3ee; color: #22d3ee; font-size: 11px; font-weight: 900; border-radius: 4px; cursor: pointer; text-transform: uppercase;">LIHAT DETAIL</div>
                  <div style="font-size: 10px; color: #a3a3a3;">${new Date(data.created_at).toLocaleDateString()}</div>
               </div>
             </div>
@@ -300,13 +325,13 @@ export default function GlobeComponent({
 
     // --- OPERATION MARKERS ---
     if ((!activeCategory || activeCategory === 'OPERASI') && highlightedLocations.length === 0) {
-      const allOps = [...opsDalamNegeri.map(o => ({...o, cat: 'DN'})), ...opsLuarNegeri.map(o => ({...o, cat: 'LN'}))];
+      const allOps = [...opsDalamNegeri.map(o => ({...o, category: 'DN'})), ...opsLuarNegeri.map(o => ({...o, category: 'LN'}))];
       allOps.forEach(op => {
         if (!op.coordinates) return;
         const coords = op.coordinates.replace(/[()]/g, '').split(',').map((c: string) => parseFloat(c.trim()));
         if (coords.length !== 2 || isNaN(coords[0])) return;
 
-        const color = op.cat === 'DN' ? '#3b82f6' : '#22d3ee';
+        const color = op.category === 'DN' ? '#3b82f6' : '#22d3ee';
         const el = document.createElement('div');
         el.className = 'globe-marker-container';
         el.innerHTML = `
@@ -458,13 +483,7 @@ export default function GlobeComponent({
         </div>
       )}
 
-      <div className="absolute bottom-10 right-10 z-[1001] flex flex-col gap-4">
-        <div className="flex flex-col bg-black/80 backdrop-blur-xl border border-tactical-green/40 rounded-xl overflow-hidden shadow-[0_0_30px_rgba(0,255,0,0.15)] pointer-events-auto">
-          <button onClick={handleZoomIn} className="p-4 text-tactical-green hover:bg-tactical-green/20 transition-all border-b border-tactical-green/10" title="Zoom In"><ZoomIn size={20} /></button>
-          <button onClick={handleZoomOut} className="p-4 text-tactical-green hover:bg-tactical-green/20 transition-all border-b border-tactical-green/10" title="Zoom Out"><ZoomOut size={20} /></button>
-          <button onClick={handleReset} className="p-4 text-tactical-green hover:bg-tactical-green/20 transition-all" title="Reset Camera"><RotateCcw size={20} /></button>
-        </div>
-      </div>
+
     </div>
   );
 }

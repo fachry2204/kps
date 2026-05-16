@@ -345,31 +345,6 @@ function MapContent() {
           {viewMode === '2D' ? '3D GLOBE VIEW' : '2D MAP VIEW'}
         </button>
 
-        {viewMode === '3D' && (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="tactical-glass p-3 rounded-md border border-tactical-green/20 flex flex-col gap-2 mt-2"
-          >
-            <div className="text-[9px] font-black text-tactical-green/60 uppercase tracking-widest mb-1 border-b border-tactical-green/10 pb-1">Legend Kontrol</div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-              <span className="text-[9px] font-bold text-white uppercase font-mono tracking-tight">Kesatuan</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-[#ef4444] shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
-              <span className="text-[9px] font-bold text-white uppercase font-mono tracking-tight">Intelijen</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-[#3b82f6] shadow-[0_0_8px_rgba(59,130,246,0.4)]" />
-              <span className="text-[9px] font-bold text-white uppercase font-mono tracking-tight">Operasi DN</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-[#22d3ee] shadow-[0_0_8px_rgba(34,211,238,0.4)]" />
-              <span className="text-[9px] font-bold text-white uppercase font-mono tracking-tight">Operasi LN</span>
-            </div>
-          </motion.div>
-        )}
       </div>
 
       {/* Button to view data corresponding to the active category */}

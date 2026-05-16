@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Circle, LayersControl, LayerGroup, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { Building2, Building, Shield, Crosshair, Users, Activity, Package, MapPin, Search, ChevronRight, ChevronLeft, X, Clock, AlertTriangle, Eye, Target, ClipboardList, Truck, MessageSquare, Video, Minus, Plus, Database } from "lucide-react";
+import { Building2, Building, Shield, Crosshair, Users, Activity, Package, MapPin, Search, ChevronRight, ChevronLeft, X, Clock, AlertTriangle, Eye, Target, ClipboardList, Truck, MessageSquare, Video, Minus, Plus, Database, RotateCcw } from "lucide-react";
 import { getOpAssignments, getOperationAssets, getLogistics, getUnitMembers, getLogisticsByUnit, getUnitActivities, getLogisticsDistribution, getLogisticsDistributionDetails, getAllLogisticsLocations } from "@/app/actions";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -301,7 +301,7 @@ export default function MapComponent({
 
   useEffect(() => {
     if (selectedOperation) {
-      const type = selectedOperation.category === 'DN' ? 'DALAM_NEGERI' : 'LUAR_NEGERI';
+      const type = (selectedOperation.type === 'DALAM_NEGERI' || selectedOperation.category === 'DN') ? 'DALAM_NEGERI' : 'LUAR_NEGERI';
       getOpAssignments(selectedOperation.id, type).then(data => setOpAssignments(data));
       getOperationAssets(selectedOperation.id, type).then(data => setOpAssets(data));
     }
@@ -365,13 +365,16 @@ export default function MapComponent({
 
 
   return (
-    <div className={cn(
-      "relative w-full overflow-hidden transition-all duration-500",
-      isFullScreen 
-        ? "h-screen w-screen" 
-        : "h-full rounded-lg tactical-border border-tactical-green",
-      className
-    )}>
+    <div 
+      className={cn(
+        "relative w-full overflow-hidden transition-all duration-500",
+        isFullScreen 
+          ? "h-screen w-screen" 
+          : "h-full rounded-lg tactical-border border-tactical-green",
+        hideMap ? "pointer-events-none" : "pointer-events-auto",
+        className
+      )}
+    >
       {!mounted ? (
         <div className="w-full h-full bg-tactical-bg flex items-center justify-center text-tactical-green">
           INITIALIZING SATELLITE LINK...
@@ -2421,7 +2424,11 @@ export default function MapComponent({
               max="18"
               step="0.5"
               value={currentZoom}
-              onChange={(e) => setCurrentZoom(parseFloat(e.target.value))}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                setCurrentZoom(val);
+                if (onMapChange) onMapChange(currentCenter, val);
+              }}
               className="w-32 h-1 bg-tactical-bg rounded-lg appearance-none cursor-pointer accent-tactical-green"
               style={{
                 background: `linear-gradient(to right, var(--color-tactical-green) 0%, var(--color-tactical-green) ${((currentZoom - 3) / (18 - 3)) * 100}%, var(--color-tactical-bg) ${((currentZoom - 3) / (18 - 3)) * 100}%, var(--color-tactical-bg) 100%)`
@@ -2440,6 +2447,22 @@ export default function MapComponent({
           <div className="bg-tactical-green/10 border border-tactical-green/30 rounded px-2 py-0.5 min-w-[40px] text-center">
             <span className="text-[10px] font-bold font-mono text-tactical-green">{currentZoom.toFixed(1)}x</span>
           </div>
+
+          <button 
+            onClick={() => {
+              const defaultCenter: [number, number] = [-0.7893, 113.9213];
+              const defaultZoom = 5;
+              setCurrentZoom(defaultZoom);
+              setCurrentCenter(defaultCenter);
+              if (onMapChange) onMapChange(defaultCenter, defaultZoom);
+              // Also trigger onMarkerClick to sync parent's targetLocation
+              if (onMarkerClick) onMarkerClick(defaultCenter, defaultZoom);
+            }}
+            className="p-1.5 hover:bg-tactical-green/20 rounded text-tactical-green transition-colors border border-tactical-green/20"
+            title="Reset Map"
+          >
+            <RotateCcw size={14} />
+          </button>
         </div>
       </div>
         </>
