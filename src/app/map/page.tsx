@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ChevronUp, ChevronDown, Search, Database, Eye, LayoutDashboard, Shield, Activity, MessageSquare, Users, Package, BarChart3, Settings, ChevronLeft, ChevronRight, Map as MapIcon, RefreshCcw, ShieldAlert, Target, Building2, MapPin, Crosshair } from "lucide-react";
+import { X, ChevronUp, ChevronDown, Search, Database, Eye, LayoutDashboard, Shield, Activity, MessageSquare, Users, Package, BarChart3, Settings, ChevronLeft, ChevronRight, Map as MapIcon, RefreshCcw, ShieldAlert, Target, Building2, MapPin, Crosshair, Navigation } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
@@ -18,6 +18,11 @@ const MapComponent = dynamic(
       <div className="text-tactical-green font-mono text-sm tracking-widest animate-pulse">MEMBANGUN KONEKSI SATELIT...</div>
     </div>
   )}
+);
+
+const GlobeComponent = dynamic(
+  () => import("@/components/map/GlobeComponent"),
+  { ssr: false }
 );
 
 function MapContent() {
@@ -47,6 +52,8 @@ function MapContent() {
   const [extActiveModal, setExtActiveModal] = useState<any>(null);
   const [logisticCategoryFilter, setLogisticCategoryFilter] = useState("ALL");
   const [intelStatusFilter, setIntelStatusFilter] = useState("ALL");
+  const [viewMode, setViewMode] = useState<'2D' | '3D'>('2D');
+  const [targetLocation, setTargetLocation] = useState<{lat: number, lng: number} | undefined>(undefined);
 
   const menuItems = [
     { name: "Dashboard", icon: <LayoutDashboard size={20} />, path: "/dashboard" },
@@ -129,27 +136,41 @@ function MapContent() {
 
       {/* Map Content */}
       <div className="w-full h-full">
-        <MapComponent 
-          isFullScreen={true} 
-          targetCenter={center} 
-          targetZoom={zoom} 
-          activeCategory={activeCategory} 
-          units={units} 
-          intelReports={intelReports}
-          opsDalamNegeri={opsDalamNegeri}
-          opsLuarNegeri={opsLuarNegeri}
-          searchQuery={searchQuery} 
-          opFilter={opFilter}
-          intelStatusFilter={intelStatusFilter}
-          moveTrigger={moveTrigger}
-          onMarkerClick={(newCenter, newZoom) => {
-            setCenter(newCenter);
-            setZoom(newZoom);
-            setMoveTrigger(prev => prev + 1);
-          }}
-          externalSelectedEntity={extSelectedEntity}
-          externalActiveModal={extActiveModal}
-        />
+        {viewMode === '2D' ? (
+          <MapComponent 
+            isFullScreen={true} 
+            targetCenter={center} 
+            targetZoom={zoom} 
+            activeCategory={activeCategory} 
+            units={units} 
+            intelReports={intelReports}
+            opsDalamNegeri={opsDalamNegeri}
+            opsLuarNegeri={opsLuarNegeri}
+            searchQuery={searchQuery} 
+            opFilter={opFilter}
+            intelStatusFilter={intelStatusFilter}
+            moveTrigger={moveTrigger}
+            onMarkerClick={(newCenter, newZoom) => {
+              setCenter(newCenter);
+              setZoom(newZoom);
+              setMoveTrigger(prev => prev + 1);
+              setTargetLocation({ lat: newCenter[0], lng: newCenter[1] });
+            }}
+            externalSelectedEntity={extSelectedEntity}
+            externalActiveModal={extActiveModal}
+          />
+        ) : (
+          <GlobeComponent 
+            units={units}
+            intelReports={intelReports}
+            opsDalamNegeri={opsDalamNegeri}
+            opsLuarNegeri={opsLuarNegeri}
+            targetLocation={targetLocation}
+            onMarkerClick={(lat, lng) => {
+              setTargetLocation({ lat, lng });
+            }}
+          />
+        )}
       </div>
 
 
@@ -277,6 +298,47 @@ function MapContent() {
           <Package size={14} />
           Logistik
         </button>
+
+        <div className="w-full h-[1px] bg-white/10 my-1" />
+
+        <button 
+          onClick={() => setViewMode(viewMode === '2D' ? '3D' : '2D')}
+          className={cn(
+            "text-[12px] font-black tracking-[0.1em] px-5 py-2.5 border-2 rounded-md shadow-[0_0_20px_rgba(0,0,0,0.6)] backdrop-blur-md transition-all uppercase flex items-center gap-2",
+            viewMode === '3D' 
+              ? "border-tactical-green text-black bg-tactical-green shadow-[0_0_15px_rgba(0,255,0,0.5)]" 
+              : "border-white/40 text-white bg-black/80 hover:border-tactical-green hover:bg-tactical-green/20"
+          )}
+        >
+          <Navigation size={14} className={viewMode === '3D' ? "animate-pulse" : ""} />
+          {viewMode === '2D' ? '3D GLOBE VIEW' : '2D MAP VIEW'}
+        </button>
+
+        {viewMode === '3D' && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="tactical-glass p-3 rounded-md border border-tactical-green/20 flex flex-col gap-2 mt-2"
+          >
+            <div className="text-[9px] font-black text-tactical-green/60 uppercase tracking-widest mb-1 border-b border-tactical-green/10 pb-1">Legend Kontrol</div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+              <span className="text-[9px] font-bold text-white uppercase font-mono tracking-tight">Kesatuan</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#ef4444] shadow-[0_0_8px_rgba(239,68,68,0.4)]" />
+              <span className="text-[9px] font-bold text-white uppercase font-mono tracking-tight">Intelijen</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#3b82f6] shadow-[0_0_8px_rgba(59,130,246,0.4)]" />
+              <span className="text-[9px] font-bold text-white uppercase font-mono tracking-tight">Operasi DN</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#22d3ee] shadow-[0_0_8px_rgba(34,211,238,0.4)]" />
+              <span className="text-[9px] font-bold text-white uppercase font-mono tracking-tight">Operasi LN</span>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {/* Button to view data corresponding to the active category */}
@@ -469,6 +531,7 @@ function MapContent() {
                             setCenter([lat, lng]);
                             setZoom(10);
                             setMoveTrigger(prev => prev + 1);
+                            setTargetLocation({ lat, lng });
                           }
                         }
                       }
@@ -528,6 +591,7 @@ function MapContent() {
                             setCenter([lat, lng]);
                             setZoom(10);
                             setMoveTrigger(prev => prev + 1);
+                            setTargetLocation({ lat, lng });
                           }
                         }
                       }
@@ -567,6 +631,7 @@ function MapContent() {
                                   setCenter([lat, lng]);
                                   setZoom(15);
                                   setMoveTrigger(prev => prev + 1);
+                                  setTargetLocation({ lat, lng });
                                 }
                               }
                             }
@@ -604,6 +669,7 @@ function MapContent() {
                             setCenter([lat, lng]);
                             setZoom(10);
                             setMoveTrigger(prev => prev + 1);
+                            setTargetLocation({ lat, lng });
                           }
                         }
                       }

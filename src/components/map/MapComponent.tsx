@@ -9,6 +9,9 @@ import { getOpAssignments, getOperationAssets, getLogistics, getUnitMembers, get
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import "maplibre-gl/dist/maplibre-gl.css";
+import maplibregl from "maplibre-gl";
+import "@maplibre/maplibre-gl-leaflet";
 
 // Fix leafet default icon issue in Next.js
 const customIcon = new L.Icon({
@@ -68,16 +71,21 @@ const createIntelIcon = (threatLevel: string) => {
   });
 };
 
-const opIcon = new L.DivIcon({
-  className: 'custom-op-icon',
-  html: `<div style="position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
-            <div style="position: absolute; width: 100%; height: 100%; border-radius: 50%; background: #000; border: 2px solid #ff0000; box-shadow: 0 0 10px rgba(255, 0, 0, 0.8); z-index: 1;"></div>
-            <div style="position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 3px solid #ff0000; animation: pulse-high 2s infinite; z-index: 0;"></div>
-            <img src="/logo_puskodal.png" style="width: 24px; height: 24px; object-fit: contain; z-index: 2; filter: drop-shadow(0 0 3px rgba(255,0,0,0.5));" />
-         </div>`,
-  iconSize: [36, 36],
-  iconAnchor: [18, 18]
-});
+const createOpIcon = (category: string) => {
+  const color = category === 'DN' ? '#3b82f6' : '#22d3ee';
+  const shadowColor = category === 'DN' ? 'rgba(59, 130, 246, 0.8)' : 'rgba(34, 211, 238, 0.8)';
+  
+  return new L.DivIcon({
+    className: 'custom-op-icon',
+    html: `<div style="position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
+              <div style="position: absolute; width: 100%; height: 100%; border-radius: 50%; background: ${color}; border: 2px solid white; box-shadow: 0 0 15px ${shadowColor}; z-index: 1;"></div>
+              <div style="position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 3px solid ${color}; animation: pulse-high 2s infinite; z-index: 0;"></div>
+              <img src="/logo_puskodal.png" style="width: 24px; height: 24px; object-fit: contain; z-index: 2; filter: drop-shadow(0 0 3px rgba(0,0,0,0.3));" />
+           </div>`,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18]
+  });
+};
 
 const createUnitIcon = (logoUrl?: string) => {
   const actualLogo = logoUrl || "/logo_puskodal.png";
@@ -127,6 +135,26 @@ function MapViewUpdater({ center, zoom, moveTrigger, onZoomEnd }: { center: [num
       }
     }
   });
+  
+  return null;
+}
+
+function MapLibreLayer({ url }: { url: string }) {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (!map) return;
+    
+    // @ts-ignore
+    const glLayer = L.maplibreGL({
+      style: url,
+    });
+    
+    glLayer.addTo(map);
+    return () => {
+      map.removeLayer(glLayer);
+    };
+  }, [map, url]);
   
   return null;
 }
@@ -399,7 +427,10 @@ export default function MapComponent({
         </style>
         <MapViewUpdater center={targetCenter} zoom={currentZoom} moveTrigger={moveTrigger} onZoomEnd={setCurrentZoom} />
         <LayersControl position="bottomright">
-          <LayersControl.BaseLayer checked name="Google Maps Roadmap">
+          <LayersControl.BaseLayer checked name="3D Tactical View (Bldg)">
+            <MapLibreLayer url="https://tiles.openfreemap.org/styles/liberty" />
+          </LayersControl.BaseLayer>
+          <LayersControl.BaseLayer name="Google Maps Roadmap">
             <TileLayer
               url="https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
               subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
@@ -417,6 +448,12 @@ export default function MapComponent({
                 zIndex={1000}
               />
             </LayerGroup>
+          </LayersControl.BaseLayer>
+          <LayersControl.BaseLayer name="Google Maps Terrain">
+            <TileLayer
+              url="https://{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}"
+              subdomains={['mt0', 'mt1', 'mt2', 'mt3']}
+            />
           </LayersControl.BaseLayer>
         </LayersControl>
         <MapEventsHandler 
@@ -599,7 +636,7 @@ export default function MapComponent({
                 <LayerGroup key={`op-${op.category}-${op.id}`}>
                   <Marker 
                     position={[lat, lng]} 
-                    icon={opIcon}
+                    icon={createOpIcon(op.category)}
                     eventHandlers={{
                       click: (e) => {
                         L.DomEvent.stopPropagation(e);
@@ -892,20 +929,20 @@ export default function MapComponent({
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="border-b border-tactical-border bg-tactical-green/10">
-                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest">No</th>
-                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest">Foto</th>
-                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest">Nama Lengkap</th>
-                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest text-center">Pangkat / NRP</th>
-                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest text-center">Spesialisasi</th>
-                            <th className="p-4 text-xs font-black text-tactical-green uppercase tracking-widest text-right">Aksi</th>
+                            <th className="p-2 text-[10px] font-black text-tactical-green uppercase tracking-widest">No</th>
+                            <th className="p-2 text-[10px] font-black text-tactical-green uppercase tracking-widest">Foto</th>
+                            <th className="p-2 text-[10px] font-black text-tactical-green uppercase tracking-widest">Nama Lengkap</th>
+                            <th className="p-2 text-[10px] font-black text-tactical-green uppercase tracking-widest text-center">Pangkat / NRP</th>
+                            <th className="p-2 text-[10px] font-black text-tactical-green uppercase tracking-widest text-center">Spesialisasi</th>
+                            <th className="p-2 text-[10px] font-black text-tactical-green uppercase tracking-widest text-right">Aksi</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-tactical-border/30">
                            {unitPersonnel.length > 0 ? unitPersonnel.map((p, i) => (
                             <tr key={i} className="hover:bg-tactical-green/5 transition-colors group">
-                              <td className="p-4 text-base font-mono text-tactical-muted">{i + 1}</td>
-                              <td className="p-4">
-                                <div className="w-20 h-20 rounded border border-tactical-green/30 overflow-hidden bg-black/40 shadow-[0_0_15px_rgba(57,255,20,0.2)]">
+                              <td className="p-2 text-xs font-mono text-tactical-muted">{i + 1}</td>
+                              <td className="p-2">
+                                <div className="w-12 h-12 rounded border border-tactical-green/30 overflow-hidden bg-black/40 shadow-[0_0_10px_rgba(57,255,20,0.1)]">
                                   <img 
                                     src={p.photo_url || `https://i.pravatar.cc/150?u=${p.id}`} 
                                     alt={p.name} 
@@ -913,18 +950,18 @@ export default function MapComponent({
                                   />
                                 </div>
                               </td>
-                              <td className="p-4">
-                                <div className="text-lg font-black text-tactical-text uppercase tracking-tight">{p.name}</div>
+                              <td className="p-2">
+                                <div className="text-xs font-black text-tactical-text uppercase tracking-tight">{p.name}</div>
                               </td>
-                              <td className="p-4 text-center">
-                                <div className="text-sm text-tactical-muted uppercase font-mono font-black">{p.rank} / {p.nrp || '-'}</div>
+                              <td className="p-2 text-center">
+                                <div className="text-[9px] text-tactical-muted uppercase font-mono font-black">{p.rank} / {p.nrp || '-'}</div>
                               </td>
-                              <td className="p-4 text-center">
-                                <span className="px-4 py-1.5 bg-tactical-green/10 border border-tactical-green/30 rounded text-xs font-black text-tactical-green uppercase tracking-wider">
+                              <td className="p-2 text-center">
+                                <span className="px-2 py-0.5 bg-tactical-green/10 border border-tactical-green/30 rounded text-[8px] font-black text-tactical-green uppercase tracking-wider">
                                   {p.unit_role || p.specialization || 'OPERASI'}
                                 </span>
                               </td>
-                              <td className="p-4 text-right">
+                              <td className="p-2 text-right">
                                 <button 
                                   onClick={() => {
                                     setSelectedPersonnel({
@@ -935,9 +972,9 @@ export default function MapComponent({
                                     setDetailReturnModal('PERSONNEL');
                                     setActiveModal('PERSONNEL_DETAIL');
                                   }}
-                                  className="p-2 hover:bg-tactical-green/20 rounded-md transition-all text-tactical-muted hover:text-tactical-green bg-tactical-green/5 border border-tactical-green/20"
+                                  className="p-1.5 hover:bg-tactical-green/20 rounded-md transition-all text-tactical-muted hover:text-tactical-green bg-tactical-green/5 border border-tactical-green/20"
                                 >
-                                  <Eye size={18} />
+                                  <Eye size={14} />
                                 </button>
                               </td>
                             </tr>
