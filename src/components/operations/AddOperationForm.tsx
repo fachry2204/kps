@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { addOpDalamNegeri, addOpLuarNegeri, searchPersonnel, getPersonnelAssignment, assignPersonnelToOp, addOperationLogistics, getLogistics } from "@/app/actions";
 import dynamic from "next/dynamic";
 
-const LocationPicker = dynamic(() => import("../units/LocationPicker"), { 
+const MapComponent = dynamic(() => import("../map/MapComponent"), { 
   ssr: false,
   loading: () => <div className="h-[300px] bg-tactical-bg flex items-center justify-center text-tactical-green font-mono text-xs uppercase">Connecting to Satellite...</div>
 });
@@ -290,8 +290,8 @@ export default function AddOperationForm({ type }: AddOperationFormProps) {
                         </button>
                       </div>
                       <div className="rounded-lg overflow-hidden border border-tactical-border h-[350px]">
-                        <LocationPicker 
-                          initialLocation={(() => {
+                        <MapComponent 
+                          targetCenter={(() => {
                             if (formData.coordinates && formData.coordinates.includes(',')) {
                               const parts = formData.coordinates.split(',').map((p: string) => parseFloat(p.trim()));
                               if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
@@ -300,9 +300,10 @@ export default function AddOperationForm({ type }: AddOperationFormProps) {
                             }
                             return [-0.7893, 113.9213];
                           })()} 
-                          onLocationSelected={(lat, lng) => setFormData({...formData, coordinates: `${lat.toFixed(6)}, ${lng.toFixed(6)}`})}
-                          hasLocation={!!formData.coordinates}
-                          zoom={formData.coordinates ? 13 : 5}
+                          selectable={true}
+                          onSelectCoordinates={(coords) => setFormData({...formData, coordinates: `${coords[0].toFixed(6)}, ${coords[1].toFixed(6)}`})}
+                          targetZoom={formData.coordinates ? 13 : 5}
+                          className="h-full"
                         />
                       </div>
                       <p className="text-[10px] font-mono text-tactical-muted mt-2 uppercase italic text-center">

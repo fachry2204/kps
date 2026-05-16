@@ -131,10 +131,22 @@ function MapViewUpdater({ center, zoom, moveTrigger, onZoomEnd }: { center: [num
   return null;
 }
 
-function MapEventsHandler({ onMapClick }: { onMapClick: () => void }) {
+function MapEventsHandler({ 
+  onMapClick, 
+  selectable, 
+  onSelectCoordinates 
+}: { 
+  onMapClick: () => void;
+  selectable?: boolean;
+  onSelectCoordinates?: (coords: [number, number]) => void;
+}) {
   useMapEvents({
-    click() {
-      onMapClick();
+    click(e) {
+      if (selectable && onSelectCoordinates) {
+        onSelectCoordinates([e.latlng.lat, e.latlng.lng]);
+      } else {
+        onMapClick();
+      }
     }
   });
   return null;
@@ -157,8 +169,12 @@ export default function MapComponent({
   singleMarker = null,
   onMarkerClick,
   externalSelectedEntity,
-  externalActiveModal,
+  externalActiveModal = null,
   moveTrigger = 0,
+  showControls = false,
+  selectable = false,
+  onSelectCoordinates,
+  className = "",
 }: {
   isFullScreen?: boolean;
   targetCenter?: [number, number];
@@ -176,6 +192,10 @@ export default function MapComponent({
   externalSelectedEntity?: any;
   externalActiveModal?: any;
   moveTrigger?: number;
+  showControls?: boolean;
+  selectable?: boolean;
+  onSelectCoordinates?: (coords: [number, number]) => void;
+  className?: string;
 }) {
   const [mounted, setMounted] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(targetZoom);
@@ -292,7 +312,8 @@ export default function MapComponent({
       "relative w-full overflow-hidden transition-all duration-500",
       isFullScreen 
         ? "h-screen w-screen" 
-        : "h-[600px] rounded-lg tactical-border border-tactical-green"
+        : "h-full rounded-lg tactical-border border-tactical-green",
+      className
     )}>
       {!mounted ? (
         <div className="w-full h-full bg-tactical-bg flex items-center justify-center text-tactical-green">
@@ -321,7 +342,7 @@ export default function MapComponent({
             center={targetCenter} 
             zoom={targetZoom} 
             style={{ height: '100%', width: '100%', backgroundColor: '#f8f9fa' }}
-            zoomControl={false}
+            zoomControl={showControls}
             attributionControl={false}
           >
         <style>
@@ -398,10 +419,14 @@ export default function MapComponent({
             </LayerGroup>
           </LayersControl.BaseLayer>
         </LayersControl>
-        <MapEventsHandler onMapClick={() => {
-          setSelectedEntity(null);
-          if (onMarkerClick) onMarkerClick([-0.7893, 113.9213], 5);
-        }} />
+        <MapEventsHandler 
+          onMapClick={() => {
+            setSelectedEntity(null);
+            if (onMarkerClick) onMarkerClick([-0.7893, 113.9213], 5);
+          }} 
+          selectable={selectable}
+          onSelectCoordinates={onSelectCoordinates}
+        />
 
         {(!activeCategory || activeCategory === 'KESATUAN') && (
           <>
@@ -616,22 +641,23 @@ export default function MapComponent({
                const shadowColor = loc.type === 'UNIT' ? 'rgba(255,51,51,0.8)' : 
                                  loc.type === 'DALAM_NEGERI' ? 'rgba(59,130,246,0.8)' : 
                                  'rgba(34,211,238,0.8)';
-
+               
                return (
                  <Marker 
-                   key={`highlight-${loc.type || 'L'}-${loc.id || idx}-${idx}`} 
-                   position={[lat, lng]} 
-                   icon={L.divIcon({
-                     className: 'custom-highlight-icon',
-                     html: `<div class="w-10 h-10 flex items-center justify-center">
-                              <div class="w-0 h-0 border-l-[15px] border-l-transparent border-r-[15px] border-r-transparent border-b-[24px] relative" style="border-bottom-color: ${markerColor}; filter: drop-shadow(0 0 10px ${shadowColor});">
-                                <div class="absolute top-[8px] left-[-4px] w-2 h-2 rounded-full bg-white opacity-40"></div>
-                              </div>
-                            </div>`,
-                     iconSize: [48, 48],
-                     iconAnchor: [24, 48]
-                   })}
-                 >
+                    key={`highlight-${loc.type || 'L'}-${loc.id || idx}-${idx}`} 
+                    position={[lat, lng]} 
+                    icon={L.divIcon({
+                      className: 'custom-highlight-icon',
+                      html: `<div class="flex items-center justify-center" style="animation: pulse 1.5s infinite;">
+                               <svg width="36" height="32" viewBox="0 0 36 32" style="filter: drop-shadow(0 0 10px ${shadowColor});">
+                                 <path d="M18 2 L34 30 L2 30 Z" fill="${markerColor}" stroke="black" stroke-width="2" stroke-linejoin="round" />
+                                 <circle cx="18" cy="18" r="3" fill="white" opacity="0.4" />
+                               </svg>
+                             </div>`,
+                      iconSize: [48, 48],
+                      iconAnchor: [24, 32]
+                    })}
+                  >
                    <Popup className="tactical-popup" minWidth={280}>
                       <div className="font-bold uppercase mb-1" style={{ color: markerColor }}>{loc.name}</div>
                       <div className="text-[10px] text-tactical-muted uppercase font-mono">
